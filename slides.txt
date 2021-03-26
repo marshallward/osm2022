@@ -1,0 +1,30 @@
+==================
+Presentation Title
+==================
+
+:author: Mister Robot
+:description: A one-line summary of the presentation.
+:date: 1997-10-01
+:url: https://marshallward.org/sample.html
+:preface:
+   Introductory comments, written to slide notes
+
+
+Slide Title
+===========
+
+Slide contents
+
+.. notes::
+   
+   Some Slide notes
+
+
+Final
+=====
+
+The end
+
+.. notes::
+
+   End slide

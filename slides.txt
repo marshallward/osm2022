@@ -1,23 +1,149 @@
-==================
-Presentation Title
-==================
+=============================================================================
+Estimating and measuring peak performance of numerical ocean model algorithms
+=============================================================================
 
-:author: Mister Robot
-:description: A one-line summary of the presentation.
-:date: 1997-10-01
-:url: https://marshallward.org/sample.html
+:author: Marshall Ward
+:description: Estimating and measuring peak performance of numerical ocean
+              model algorithms
+:organization: NOAA-GFDL
+:date: March 1, 2022
+:url: https://marshallward.org/os2022.html
 :preface:
    Introductory comments, written to slide notes
 
 
-Slide Title
-===========
+Describing Performance
+======================
 
-Slide contents
+Mathematical performance
+   Numerical convergence of algorithm?
+
+Operational performance
+   Simulation time per runtime
+
+Computational performance
+   Operations per second (watt, etc)
+
+
+Peak Performance
+================
+
+Platform    Theoretical    Observed
+
+Haswell      749
+Tesla V100  6297.6
+
+
+FLOP performance
+================
+
+.. image:: img/gaea_dp_flops.svg
 
 .. notes::
-   
+
    Some Slide notes
+
+
+Performance Bounds
+==================
+
+Compute-bound: Matrix Multiplication
+
+.. math::
+
+   \text{C}_{ij} = \sum_{k} A_{ik} B_{kj}
+
+   \text{AI} = \frac{2n^3}{2n^2} = n
+
+Memory-bound: Field update
+
+.. math::
+
+   \phi_{ijk} = \phi_{ijk} + \Delta t \mathcal{F}_{ijk}
+
+   \text{AI} = \frac{2n}{2n \times \texttt{sizeof} (\phi)} = \frac{1}{8}
+
+
+Roofline
+========
+
+.. image:: img/gaea_roof_dp.svg
+
+
+Unaccounted Factors
+===================
+
+* Pipelining
+
+* Instruction decoder
+
+* Variable Clock Frequency
+
+* Depletion of registers
+
+
+Euler Step
+==========
+
+.. math::
+
+   \phi^{n+1}_i = \phi^n_i
+      + \Delta t \left( \frac{\partial \phi}{\partial t} \right)_i
+
+.. code:: c
+
+   y[i] = y[i] + a * x[i]
+
+2 FLOPs per 16 bytes: :math:`\frac{1}{8}`
+
+
+Finite Difference
+=================
+
+.. math::
+
+   \phi^{n+1}_i = \phi^n_i + \frac{\Delta t}{\Delta x^2}
+      \left(\phi^n_{i+1} - 2 \phi^n_i + \phi^n_{i-1} \right)
+
+.. code:: c
+
+   y[i] = y[i] + a * x[i+1] + b * x[i] + a * x[i-1]
+
+   x[i] = y[i]
+
+5 FLOPs (amortized) per 2 doubles:
+
+
+.. TODO Two implementations:
+   1. +1 offset
+   2. +8 offset
+
+
+Square Root
+===========
+
+* without -ffast-math
+* with -ffast-math
+
+
+Hierarchy of Performance
+========================
+
+* Implement algorithm
+
+* Measure arithmetic intensity (AI)
+
+* Verify vectorization
+
+  * Eliminate unfavorable structures (**do-if-do**)
+
+* Optimize pipeline: 1 Op/cycle
+
+   * Co-locate read/write access
+
+* Diagnose performance as % of theoretical peak (wrt hardware & AI)
+
+
 
 
 Final

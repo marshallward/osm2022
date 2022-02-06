@@ -28,20 +28,48 @@ Computational performance
 Peak Performance
 ================
 
-Platform    Theoretical    Observed
-
-Haswell      749
-Tesla V100  6297.6
-
-
-FLOP performance
-================
-
-.. image:: img/gaea_dp_flops.svg
+============   =========== ======== ===== ===== ======
+Platform       Theoretical Observed Year  Price TDP(W)
+============   =========== ======== ===== ===== ======
+Broadwell      1555.2      1553.0   2016  $2702 145
+Cascade Lake   2150.4      2145.3   2019  $6432 240
+Volta (GPU)    7065.6      7005?    2018  $8999 250
+============   =========== ======== ===== ===== ======
 
 .. notes::
 
-   Some Slide notes
+   Theoretical peaks use frequency-adjusted values for maximum core count.
+
+   Peak: (# cores) x (# ops/instr) x (# instr/cycle) x (freq[max_cores])
+
+   B.W.: 36 * (2*4) * 2 * 2.7 = ??
+   C.L.: 24 * (2*4) * 2 * 3.3 GHz = 1267.2
+       : 24 * (2*8) * 2 * 2.8 GHz = 2534.4
+   V100: 2560 * 2 * 1 * 1.380 GHz = 7065.6
+
+   For cascade lake:
+   * AVX512 freq is 2.8, regardless of cores (or so it seems)
+   * AVX freq is 
+
+   Broadwell: Q1'16
+   Cascade Lake: Q2'19
+   Volta V100: Q1'18
+
+
+GPU performance
+===============
+
+.. image:: img/dgemm_vs_daxpy.svg
+
+.. notes::
+
+   * x: length of array, or sqrt(dim) of square matrix
+
+   * Nvidia DGEMM and DAXPY from cuBLAS
+   * Intel DGEMM results from MKL
+   * Intel DAXPY results from Optiflop
+
+   Note: Optiflop DAXPY results agree with cuBLAS.
 
 
 Performance Bounds
@@ -53,7 +81,7 @@ Compute-bound: Matrix Multiplication
 
    \text{C}_{ij} = \sum_{k} A_{ik} B_{kj}
 
-   \text{AI} = \frac{2n^3}{2n^2} = n
+   \text{AI} = \frac{2n^3}{2n^2 \times \texttt{sizeof}(A)} = \frac{n}{8}
 
 Memory-bound: Field update
 
@@ -62,6 +90,26 @@ Memory-bound: Field update
    \phi_{ijk} = \phi_{ijk} + \Delta t \mathcal{F}_{ijk}
 
    \text{AI} = \frac{2n}{2n \times \texttt{sizeof} (\phi)} = \frac{1}{8}
+
+
+FLOP performance
+================
+
+.. image:: img/gaea_dp_flops.svg
+
+.. notes::
+
+   Difference expressions will exhibit
+
+
+Peak DAXPY
+==========
+
+Method
+
+Optiflop    10.591
+MKL         10.040
+Likwid      
 
 
 Roofline
@@ -74,6 +122,8 @@ Unaccounted Factors
 ===================
 
 * Pipelining
+
+* Instruction latency
 
 * Instruction decoder
 

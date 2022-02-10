@@ -69,9 +69,11 @@ $endfor$
               background-size: cover;">
 
     <!-- Original ratio: 10.04" x 7.08" -->
+    <!-- the globe is distracting...
     <div style="height: 100vh; position: absolute; bottom: -50vh; left: -40vh">
       <img style="height: 100vh; width: 142vh" src="img/bg_globe.png">
     </div>
+    -->
 
     <header style="width: 10vh; position: absolute; bottom: 2vh; right: 2vh;">
       <img src="img/noaa_logo.png">

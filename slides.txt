@@ -25,41 +25,108 @@ Computational performance
    Operations per second (watt, etc)
 
 
+.. notes::
+
+   "Performance" is overall a generic term which different meanings.
+
+   Numerical analysts often focus on accuracy and convergence rates of errors,
+   with less discussion of the raw computational cost.
+
+   - If the cost of each iteration is enormous, then convergence rate is a
+     poor predictor of runtime.
+
+   Model usage is often measured in throughput, such as "SYPD" or simulated
+   years per day.
+
+   - This is a perfect metric, but perhaps too reductive.  Comparison across
+     models becomes impossible, and leaves very little sense of how well we
+     could have done, or ought to do.
+
+   Computational performance tries to decompose the problem into measurable
+   units of calculation, with FLOPs being the most well known.
+
+   - It is also flawed (some reasons we'll address) but is nonetheless a
+     useful "unit of work" for calculation, and maps well onto the computer's
+     own unit of time (clock frequency), so it has the *potential* to make
+     predictive statements of run time.
+
+   No single method can alone characterize performance.
+
+   We generally do a good job quantifying the first two, but reporting the
+   absolute performance of a model is uncommon.
+
+   I am hoping that this talk will help to start providing some basis for this
+   third point, and to help us start making confident estimates of how we're
+   doing, and how we ought to do.
+
+
 Peak Performance
 ================
 
-============   =========== ======== ===== ===== ======
-Platform       Theoretical Observed Year  Price TDP(W)
-============   =========== ======== ===== ===== ======
-Broadwell      1555.2      1553.0   2016  $2702 145
-Cascade Lake   2150.4      2145.3   2019  $6432 240
-Volta (GPU)    7065.6      7005?    2018  $8999 250
-============   =========== ======== ===== ===== ======
+.. math::
+
+   W_\text{FLOPS} = W_\text{core} \times N_\text{cores} \times f_\text{cycles}
+
+
+============   ===== =========== ========
+Platform       Year  Theoretical Observed
+============   ===== =========== ========
+Broadwell      2016  1555.2      1553.0
+Cascade Lake   2019  2150.4      2145.3
+Volta (GPU)    2018  7065.6      7007.3
+============   ===== =========== ========
+
+But are these numbers achievable?
+
+
+How we compute
+--------------
+
+Broadwell
+   36 core × 4 (AVX) × 2 (FMA) × 2 port × 2.7 GHz
+
+Cascade Lake
+   24 core × 8 (AVX512) × 2 (FMA) × 2 port × 2.8 GHz
+
+Volta
+   80 SM × 32 FP64 core × 2 (FMA) × 1.38 GHz
+
+
+Cost of Business
+----------------
+
+============   ======== ===== ===== ======
+Platform       FLOPs    Year  Price TDP(W)
+============   ======== ===== ===== ======
+Broadwell      1553.0   2016  $2702 145
+Cascade Lake   2145.3   2019  $6432 240
+Volta (GPU)    7007.3   2018  $8999 250
+============   ======== ===== ===== ======
 
 .. notes::
-
-   Theoretical peaks use frequency-adjusted values for maximum core count.
-
-   Peak: (# cores) x (# ops/instr) x (# instr/cycle) x (freq[max_cores])
-
-   B.W.: 36 * (2*4) * 2 * 2.7 = ??
-   C.L.: 24 * (2*4) * 2 * 3.3 GHz = 1267.2
-       : 24 * (2*8) * 2 * 2.8 GHz = 2534.4
-   V100: 2560 * 2 * 1 * 1.380 GHz = 7065.6
-
-   For cascade lake:
-   * AVX512 freq is 2.8, regardless of cores (or so it seems)
-   * AVX freq is 
 
    Broadwell: Q1'16
    Cascade Lake: Q2'19
    Volta V100: Q1'18
 
 
-GPU performance
-===============
+Models
+------
 
-.. image:: img/dgemm_vs_daxpy.svg
+Broadwell
+   Intel(R) Xeon(R) CPU E5-2697 v4 @ 2.30GHz
+
+Cascade Lake
+   Intel(R) Xeon(R) Platinum 8274 CPU @ 3.20GHz
+
+Volta
+   Nvidia Volta GV100 (1.38GHz)
+
+
+Performance Bounds
+==================
+
+.. image:: img/dgemm.svg
 
 .. notes::
 
@@ -75,51 +142,112 @@ GPU performance
 Performance Bounds
 ==================
 
-Compute-bound: Matrix Multiplication
+.. image:: img/dgemm_vs_daxpy.svg
+
+.. notes::
+
+   * x: length of array, or sqrt(dim) of square matrix
+
+   * Nvidia DGEMM and DAXPY from cuBLAS
+   * Intel DGEMM results from MKL
+   * Intel DAXPY results from Optiflop
+
+   Note: Optiflop DAXPY results agree with cuBLAS.
+
+
+Compute Bound
+=============
+
+Matrix Multiplication (``DGEMM``)
 
 .. math::
 
    \text{C}_{ij} = \sum_{k} A_{ik} B_{kj}
 
-   \text{AI} = \frac{2n^3}{2n^2 \times \texttt{sizeof}(A)} = \frac{n}{8}
+   \frac{\text{FLOPs}}{\text{byte}}
+      = \frac{3n^3}{2n^2 \times \texttt{sizeof}(A)}
+      = \frac{3}{16} n
 
-Memory-bound: Field update
+Efficiency (as work/byte) increases as problem grows
+
+
+Memory Bound
+============
+
+Field update (``DAXPY``)
 
 .. math::
 
    \phi_{ijk} = \phi_{ijk} + \Delta t \mathcal{F}_{ijk}
 
-   \text{AI} = \frac{2n}{2n \times \texttt{sizeof} (\phi)} = \frac{1}{8}
+   \frac{\text{FLOPs}}{\text{byte}}
+      = \frac{2n}{3n \times \texttt{sizeof} (\phi)}
+      = \frac{1}{12}
+
+Work grows in proportion to bandwidth cost
+
+
+What is our AI?
+===============
+
+Traditional incompressible CFD
+
+.. math::
+
+   \mathbf{u}^{*} =
+      \mathbf{u}^n + \Delta t \left(-\mathbf{u}^n \cdot \nabla \mathbf{u}^n +
+      \ldots \right) \\
+
+   \nabla^2 p^{n+1} = -\nabla \cdot \mathbf{u}^* \\
+
+   \mathbf{u}^{n+1} = \mathbf{u}^{*} - \nabla^2 p^{n+1} \\
+
+Pressure solver is (sparse) matrix over 3D field
+
+
+Atmospheric Solver
+------------------
+
+
+
 
 
 FLOP performance
 ================
 
-.. image:: img/gaea_dp_flops.svg
+.. image:: img/cascade_lake_flops.svg
 
 .. notes::
 
    Difference expressions will exhibit
 
 
-Peak DAXPY
-==========
+How these are produced
+----------------------
 
-Method
+.. code:: c
 
-Optiflop    10.591
-MKL         10.040
-Likwid      
+   int main() {
+      start(timer);
+      for (r = 0; r < r_max; r++) {
+          for (int i = 0; i < n; i++)
+              kernel(i, a, b, x, y);
 
+          // An impossible branch to block loop interchange
+          if (y[0] < 0.) dummy(a, b, x, y);
+      }
+      stop(timer);
+   }
 
-Roofline
-========
+   void kernel(int i, double a, double b, double *x, double *y) {
+       y[i] = a * x[i] + y[i];
+   }
 
-.. image:: img/gaea_roof_dp.svg
+Apply artificially high iteration, but let the compiler construct the kernel.
 
 
 Unaccounted Factors
-===================
+-------------------
 
 * Pipelining
 
@@ -130,6 +258,86 @@ Unaccounted Factors
 * Variable Clock Frequency
 
 * Depletion of registers
+
+
+Performance Model
+=================
+
+.. image:: img/cascade_lake_roofline.svg
+   :width: 60%
+
+.. notes::
+
+   Adjacent lines have the same AI
+
+
+Write-Allocate
+--------------
+
+NOTE: Although most x86 have two Load ports and one store port, they can
+usually only decode two addresses per cycle!  So the net bandwidth is almost
+always 1L+1S, or 2L with no store.
+
+*TODO: Make this into a readable slide*
+
+
+Roofline Modeling
+=================
+
+.. math::
+
+   P = \text{min}(P_\text{max}, I \times B_\text{mem})
+
+* :math:`P`: Performance (FLOP/s)
+
+* :math:`P_\text{max}`: Theoretical peak (FLOP/s)
+
+* :math:`I`: Arithmetic Intensity (FLOP/byte)
+
+* :math:`B_\text{mem}`: Memory bandwidth (byte/s) (cache, RAM, ...)
+
+For our codes, :math:`P = I \times B_\text{mem}`
+
+.. notes::
+
+   Roofline is a useful model for estimating how well we ought to do
+
+   However, it can be hard to apply in practice due to a few issues
+
+   * The "peak" and "memory bandwidth" are deliberately ambiguous and can be
+     hard to assign.  (RAM?  L3<->L2? etc?)
+
+   * No real effort to manage competing timescales in the CPU
+
+   ECM is an alternative model
+
+   We want to keep things very simple and just emphasize the role of bandwidth.
+
+
+Modeling our results
+====================
+
+==========  =========== =========   ================
+Platform    Speed (GHz) Width (B)   Bandwidth (GB/s)
+==========  =========== =========   ================
+x86 cache   2.8*        128*        8600
+x86 RAM     2.933       8 × 6       141
+Volta RAM   877         1024        900
+==========  =========== =========   ================
+
+* AVX512 clock speed, L1 load+store, etc
+
+
+x86 Cache Bandwidth
+-------------------
+
+.. image:: img/skylake_reduced_block_diagram.svg
+
+Cascade Lake has three 64B ports, but in practice can only use two per cycle.
+
+.. note::
+
+   https://blogs.fau.de/hager/archives/8683
 
 
 Euler Step
@@ -144,7 +352,35 @@ Euler Step
 
    y[i] = y[i] + a * x[i]
 
-2 FLOPs per 16 bytes: :math:`\frac{1}{8}`
+2 FLOPs per 24 bytes: :math:`\frac{1}{12}`\*
+
+
+Peak DAXPY
+==========
+
+=========== ======   ======== ====
+Platform    Theory   Observed %
+=========== ======   ======== ====
+x86 (Cache) 716.8    715.1    99.7
+x86 (RAM)   11.8     9.36     79.3
+GPU         74.8     70.9     94.8
+=========== ======   ======== ====
+
+.. notes::
+
+   x86 reg: (128 B/c * 2.8 GHz) * 24 cores * (1/8 FLOP/B)?
+            (128 B/c * 2.8 GHz) * 24 cores * (1/12 FLOP/B)?
+
+   x86 mem: (2.933GHz * 8 B/c) * (6 channels) * (1/12 FLOP/byte)
+      = 11.732
+
+
+   (NOTE: Bandwidth suggests 1/8 due to 128B/s buses, but the "AGU-limit"
+    means only 2 of 3 (2L+S) can be used at a time)
+
+    https://blogs.fau.de/hager/archives/8683
+
+   I can't get this 70.9 number anymore..?  Now getting 67.3 or so.
 
 
 Finite Difference
@@ -157,16 +393,66 @@ Finite Difference
 
 .. code:: c
 
-   y[i] = y[i] + a * x[i+1] + b * x[i] + a * x[i-1]
+   y[i] = a * x[i] + b * (x[i+1] +  x[i-1])
 
    x[i] = y[i]
 
-5 FLOPs (amortized) per 2 doubles:
+4 FLOPs (amortized) per 4 I/O moves: \frac{1}{8}
 
 
-.. TODO Two implementations:
-   1. +1 offset
-   2. +8 offset
+Results
+-------
+
+
+=========== ===== ======   ======
+Platform    +1    +8       Theory
+=========== ===== ======   ======
+x86 (Cache) 732.7 1071.0   1075.2
+x86 (RAM)   18.8  18.9     35.2
+GPU         162.0 162.1    224.5
+=========== ===== ======   ======
+
+.. notes::
+
+   x86 cache: 64 B/cyc * 2.8G cyc/sec * 0.25 FLOP/byte = 1075.2
+
+   x86 RAM: 2.933 GHz * 8B * 6ch = 140.8 GB/s
+      - NOTE: We typically measure ~
+
+   write-allocate is needed to understand this lower 75 GB/s estimate
+      115 = 75 * 1.5
+
+   The 80% efficiency is not really something I can understand...
+
+   https://blogs.fau.de/hager/archives/8263
+
+   https://www.cs.virginia.edu/stream/ref.html#counting
+
+
+How many FLOPS?
+---------------
+
+Is it four or five operations?
+
+.. math::
+
+   \phi^{n+1}_i = \phi^n_i + \frac{\Delta t}{\Delta x^2}
+      \left(\phi^n_{i+1} - 2 \phi^n_i + \phi^n_{i-1} \right)
+
+.. code::
+
+   y[i] = x[i] + a * (x[i-1] - 2 * x[i] + x[i+1])
+
+.. math::
+
+   \phi^{n+1}_i = \left( 1 - 2 \frac{\Delta t}{\Delta x^2} \right) \phi^n_i 
+      + \frac{\Delta t}{\Delta x^2} \left(\phi^n_{i+1} + \phi^n_{i-1} \right)
+
+.. code::
+
+   y[i] = a * x[i] + b * (x[i-1] + x[i+1])
+
+This is a compiler question: Do we follow parentheses?
 
 
 Square Root
@@ -174,6 +460,73 @@ Square Root
 
 * without -ffast-math
 * with -ffast-math
+
+
+Evaluating Model Performance
+============================
+
+.. image:: img/benchmark_topo.svg
+   :class: float
+   :width: 35%
+
+* 192 × 128 grid, 75 level
+  - 32 x 32 per MPI rank
+  - ~1.8M points / field
+
+* 288 steps (3 day, :math:`\Delta t = 900s`)
+
+* "Benchmark" configuration:
+
+  - Split barotropic
+
+  - Smagorinsky biharmonic
+
+  - Thermo, Wright EOS
+
+  - Bounded Coriolis terms
+
+  - Layered (no ALE)
+
+.. notes::
+
+   * So how is MOM6 vectorization?
+
+      * This is a compile-time feature, so ought not depend on scaling
+
+   * Using a "benchmark" single-core test
+
+      * Reasonble set of realistic components
+      * A non-trivial land/sea distribution
+
+   * Not necessarily the most physically signficant factors.  Just the ones
+     which had a significant impact on performance.
+
+
+Overview
+========
+
+.. image:: img/mom6_subrt_flops.svg
+
+
+MOM6 Roofline
+=============
+
+.. image:: img/mom6_roofline.svg
+
+
+Resource Monitoring
+===================
+
+
+.. list-table::
+   :widths: 55 45
+
+   * - .. image:: img/github_perf.png
+          :target: https://github.com/marshallward/MOM6/runs/2640839721?check_suite_focus=true
+
+     - * Expose perf metrics to CI
+
+       * Challenges abound...
 
 
 Hierarchy of Performance
@@ -187,6 +540,10 @@ Hierarchy of Performance
 
   * Eliminate unfavorable structures (**do-if-do**)
 
+* Reduce array size
+
+  * ~1000-2000 iterations seems ideal
+
 * Optimize pipeline: 1 Op/cycle
 
    * Co-locate read/write access
@@ -196,11 +553,20 @@ Hierarchy of Performance
 
 
 
-Final
-=====
+Summary
+=======
 
-The end
+* Ocean models in their current form are unlikely to ever perform at peak
+  performance, and will always be bandwidth-limited.
 
-.. notes::
+* Arithmetic intensity, with machine bandwidths, is a reliable predictor of
+  computational performance
 
-   End slide
+* CPUs benefit from modest arrays, can tolerate large arrays
+
+* GPUs thrive on large arrays, run poorly on
+
+* Best thing we can do is *monitor* and *adjust* this situation
+
+* Maximize FLOPs **within context of the solver**, but never stop
+  considering better methods

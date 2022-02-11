@@ -9,24 +9,6 @@ Estimating and measuring peak performance of numerical ocean model algorithms
 :date: March 1, 2022
 :url: https://marshallward.org/os2022.html
 :preface:
-   Introductory comments, written to slide notes
-
-
-Describing Performance
-======================
-
-Mathematical performance
-   Numerical convergence of algorithm?
-
-Operational performance
-   Simulation time per runtime
-
-Computational performance
-   Operations per second (FLOPs, Watts ...)
-
-
-.. notes::
-
    "Performance" is overall a generic term which different meanings.
 
    Numerical analysts often focus on accuracy and convergence rates of errors,
@@ -58,6 +40,7 @@ Computational performance
    I am hoping that this talk will help to start providing some basis for this
    third point, and to help us start making confident estimates of how we're
    doing, and how we ought to do.
+   Introductory comments, written to slide notes
 
 
 Peak Performance
@@ -162,6 +145,22 @@ Matrix Multiplication (``DGEMM``)
 Efficiency (work/byte) increases as problem grows
 
 
+Traditional CFD
+---------------
+
+Most solvers are hyperbolic and elliptic, e.g.:
+
+.. math::
+
+   \frac{\partial \mathbf{u}}{\partial t} =
+         - \mathbf{u} \cdot \nabla \mathbf{u} -\nabla p + \mathcal{F}
+
+   \nabla^2 p = -\nabla \left( \mathbf{u} \cdot \nabla \mathbf{u} \right)
+         - \nabla \cdot \mathcal{F} 
+
+Pressure (Montgomery potential, PV, ...) solver is a (sparse) matrix operation.
+
+
 Memory Bound
 ============
 
@@ -178,24 +177,8 @@ Field update (``DAXPY``)
 Bandwidth cost rises in proportion to work
 
 
-Traditional CFD
-===============
-
-Most solvers are hyperbolic and elliptic, e.g.:
-
-.. math::
-
-   \frac{\partial \mathbf{u}}{\partial t} =
-         - \mathbf{u} \cdot \nabla \mathbf{u} -\nabla p + \mathcal{F}
-
-   \nabla^2 p = -\nabla \left( \mathbf{u} \cdot \nabla \mathbf{u} \right)
-         - \nabla \cdot \mathcal{F} 
-
-Pressure (Montgomery potential, PV, ...) solver is a (sparse) matrix operation.
-
-
 Ocean CFD
-=========
+---------
 
 Hydrostatic balance eliminates elliptic step:
 
@@ -261,19 +244,21 @@ Unaccounted Factors
 * Depletion of registers
 
 
-Arithmetic Intensity
-====================
+Roofline Modeling
+=================
 
 .. image:: img/cascade_lake_roofline.svg
-   :width: 60%
+   :width: 50%
+
+:math:`P = I \times B_\text{mem}`
 
 .. notes::
 
    Adjacent lines have the same AI
 
 
-Roofline Modeling
-=================
+The Roofline Model
+------------------
 
 .. math::
 
@@ -308,6 +293,28 @@ For our codes, often :math:`P = I \times B_\text{mem}`
 Peak Bandwidth
 ==============
 
+.. image:: img/skylake_mem_block_diagram.svg
+   :class: float
+   :width: 45%
+
+=========== =========
+Platform    BW (GB/s)
+=========== =========
+x86 (cache) 8600
+x86 (RAM)   141
+Volta (RAM) 900
+=========== =========
+
+.. notes::
+
+   "x86" is the Cascade Lake used in the previous figures
+
+   "cache" refers to the L1 <-> register transfer speed
+
+
+Computing Bandwidth
+-------------------
+
 ==========  =========== =========   ================
 Platform    Speed (GHz) Width (B)   BW (GB/s)
 ==========  =========== =========   ================
@@ -329,6 +336,7 @@ x86 Cache Bandwidth
 -------------------
 
 .. image:: img/skylake_mem_block_diagram.svg
+   :width: 65%
 
 Three 64B + AGU ports, but only 2 AGU are usable
 
@@ -352,7 +360,7 @@ Euler Step
 2 FLOPs per 3×8 bytes: :math:`\frac{1}{12}`
 
 
-Peak DAXPY
+Peak Euler
 ==========
 
 =========== ======== ======   ====
@@ -370,7 +378,6 @@ GPU         67.3     74.8     89.9
 
    x86 mem: (2.933GHz * 8 B/c) * (6 channels) * (1/12 FLOP/byte)
       = 11.732
-
 
    (NOTE: Bandwidth suggests 1/8 due to 128B/s buses, but the "AGU-limit"
     means only 2 of 3 (2L+S) can be used at a time)
@@ -394,7 +401,7 @@ Finite Difference
 
    x[i] = y[i]
 
-4 FLOPs (amortized) per 4×8 bytes: :math:`\frac{1}{8}` (...?)
+4 FLOPs (amortized) per 4×8 bytes: :math:`\frac{1}{8}`
 
 
 How many FLOPS?
@@ -461,8 +468,8 @@ Arithmetic intensity is adjusted to :math:`\frac{1}{12}` (6 moves)
    Also, Volta seems to have no such issue
 
 
-Staging Penalty
-===============
+Diffusion Stages
+================
 
 ============================================ =========   =========
 Stage                                        Observed    Theory
@@ -520,7 +527,7 @@ Evaluating Model Performance
 
    * Using a "benchmark" single-core test
 
-      * Reasonble set of realistic components
+      * Reasonable set of realistic components
       * A non-trivial land/sea distribution
 
    * Not necessarily the most physically signficant factors.  Just the ones
@@ -567,9 +574,6 @@ Summary
 
 * CPUs benefit from modest arrays, but can tolerate larger ones
 
-* GPUS *strongly favor* large arrays, and implicit (matrix) solvers
+* GPUs *strongly favor* large arrays, and implicit (matrix) solvers
 
 * AI can be used to strategize optimization
-
-Maximize FLOPs **within context of the solver**, but never stop
-considering better methods

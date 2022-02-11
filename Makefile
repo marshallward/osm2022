@@ -33,6 +33,7 @@ index.html: slides.txt gfdl.revealjs reveal.js/css/theme/gfdl.css $(DOTFIGURES) 
 	sed -i 's/^" data-start-line=/"><code data-start-line=/g' $@
 	sed -i 's/^"><code>/">/g' $@
 	sed -i 's/<li class="fragment"/<li/g' $@
+	sed -i 's/<p>NOAA-GFDL<\/p>/NOAA-GFDL/g' $@
 
 img/%.svg: dot/%.dot
 	dot -Tsvg $^ > $@

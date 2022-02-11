@@ -67,41 +67,23 @@
   <p class="date" style="text-align: right;">March 1, 2022</p>
   <!-- Currently cannot add notes to a title slide, so have to do manually-->
   <aside class="notes">
-    <p>Introductory comments, written to slide notes</p>
+    <p>"Performance" is overall a generic term which different meanings.</p>
+    <p>Numerical analysts often focus on accuracy and convergence rates of errors, with less discussion of the raw computational cost.</p>
+    <ul>
+    <li>If the cost of each iteration is enormous, then convergence rate is a poor predictor of runtime.</li>
+    </ul>
+    <p>Model usage is often measured in throughput, such as "SYPD" or simulated years per day.</p>
+    <ul>
+    <li>This is a perfect metric, but perhaps too reductive. Comparison across models becomes impossible, and leaves very little sense of how well we could have done, or ought to do.</li>
+    </ul>
+    <p>Computational performance tries to decompose the problem into measurable units of calculation, with FLOPs being the most well known.</p>
+    <ul>
+    <li>It is also flawed (some reasons we'll address) but is nonetheless a useful "unit of work" for calculation, and maps well onto the computer's own unit of time (clock frequency), so it has the <em>potential</em> to make predictive statements of run time.</li>
+    </ul>
+    <p>No single method can alone characterize performance.</p>
+    <p>We generally do a good job quantifying the first two, but reporting the absolute performance of a model is uncommon.</p>
+    <p>I am hoping that this talk will help to start providing some basis for this third point, and to help us start making confident estimates of how we're doing, and how we ought to do. Introductory comments, written to slide notes</p>
   </aside>
-</section>
-
-<section id="describing-performance" class="title-slide slide level1">
-<h1>Describing Performance</h1>
-<dl>
-<dt>Mathematical performance</dt>
-<dd><p>Numerical convergence of algorithm?</p>
-</dd>
-<dt>Operational performance</dt>
-<dd><p>Simulation time per runtime</p>
-</dd>
-<dt>Computational performance</dt>
-<dd><p>Operations per second (FLOPs, Watts ...)</p>
-</dd>
-</dl>
-<aside class="notes">
-<p>"Performance" is overall a generic term which different meanings.</p>
-<p>Numerical analysts often focus on accuracy and convergence rates of errors, with less discussion of the raw computational cost.</p>
-<ul>
-<li>If the cost of each iteration is enormous, then convergence rate is a poor predictor of runtime.</li>
-</ul>
-<p>Model usage is often measured in throughput, such as "SYPD" or simulated years per day.</p>
-<ul>
-<li>This is a perfect metric, but perhaps too reductive. Comparison across models becomes impossible, and leaves very little sense of how well we could have done, or ought to do.</li>
-</ul>
-<p>Computational performance tries to decompose the problem into measurable units of calculation, with FLOPs being the most well known.</p>
-<ul>
-<li>It is also flawed (some reasons we'll address) but is nonetheless a useful "unit of work" for calculation, and maps well onto the computer's own unit of time (clock frequency), so it has the <em>potential</em> to make predictive statements of run time.</li>
-</ul>
-<p>No single method can alone characterize performance.</p>
-<p>We generally do a good job quantifying the first two, but reporting the absolute performance of a model is uncommon.</p>
-<p>I am hoping that this talk will help to start providing some basis for this third point, and to help us start making confident estimates of how we're doing, and how we ought to do.</p>
-</aside>
 </section>
 
 <section>
@@ -217,6 +199,7 @@
 </aside>
 </section>
 
+<section>
 <section id="compute-bound" class="title-slide slide level1">
 <h1>Compute Bound</h1>
 <p>Matrix Multiplication (<code>DGEMM</code>)</p>
@@ -225,7 +208,15 @@
    = \frac{1}{12} n\]</span></p>
 <p>Efficiency (work/byte) increases as problem grows</p>
 </section>
-
+<section id="traditional-cfd" class="slide level2">
+<h2>Traditional CFD</h2>
+<p>Most solvers are hyperbolic and elliptic, e.g.:</p>
+<p><span class="math display">\[\frac{\partial \mathbf{u}}{\partial t} =
+      - \mathbf{u} \cdot \nabla \mathbf{u} -\nabla p + \mathcal{F}\]</span><span class="math display">\[\nabla^2 p = -\nabla \left( \mathbf{u} \cdot \nabla \mathbf{u} \right)
+      - \nabla \cdot \mathcal{F}\]</span></p>
+<p>Pressure (Montgomery potential, PV, ...) solver is a (sparse) matrix operation.</p>
+</section></section>
+<section>
 <section id="memory-bound" class="title-slide slide level1">
 <h1>Memory Bound</h1>
 <p>Field update (<code>DAXPY</code>)</p>
@@ -234,24 +225,13 @@
    = \frac{1}{12}\]</span></p>
 <p>Bandwidth cost rises in proportion to work</p>
 </section>
-
-<section id="traditional-cfd" class="title-slide slide level1">
-<h1>Traditional CFD</h1>
-<p>Most solvers are hyperbolic and elliptic, e.g.:</p>
-<p><span class="math display">\[\frac{\partial \mathbf{u}}{\partial t} =
-      - \mathbf{u} \cdot \nabla \mathbf{u} -\nabla p + \mathcal{F}\]</span><span class="math display">\[\nabla^2 p = -\nabla \left( \mathbf{u} \cdot \nabla \mathbf{u} \right)
-      - \nabla \cdot \mathcal{F}\]</span></p>
-<p>Pressure (Montgomery potential, PV, ...) solver is a (sparse) matrix operation.</p>
-</section>
-
-<section id="ocean-cfd" class="title-slide slide level1">
-<h1>Ocean CFD</h1>
+<section id="ocean-cfd" class="slide level2">
+<h2>Ocean CFD</h2>
 <p>Hydrostatic balance eliminates elliptic step:</p>
 <p><span class="math display">\[\frac{\partial \mathbf{u}}{\partial t} =
       - \mathbf{u} \cdot \nabla \mathbf{u} -\nabla p + \mathcal{F}\]</span><span class="math display">\[p = -g \rho\]</span><span class="math display">\[\frac{\partial \rho}{\partial t} = ...\]</span></p>
 <p>Most barotropic solvers are also hyperbolic.</p>
-</section>
-
+</section></section>
 <section>
 <section id="array-performance" class="title-slide slide level1">
 <h1>Array Performance</h1>
@@ -290,16 +270,17 @@ void kernel(int i, double a, double b, double *x, double *y) {
 <li>Depletion of registers</li>
 </ul>
 </section></section>
-<section id="arithmetic-intensity" class="title-slide slide level1">
-<h1>Arithmetic Intensity</h1>
-<p><img data-src="img/cascade_lake_roofline.svg" style="width:60.0%" alt="image" /></p>
+<section>
+<section id="roofline-modeling" class="title-slide slide level1">
+<h1>Roofline Modeling</h1>
+<p><img data-src="img/cascade_lake_roofline.svg" style="width:50.0%" alt="image" /></p>
+<p><span class="math inline">\(P = I \times B_\text{mem}\)</span></p>
 <aside class="notes">
 <p>Adjacent lines have the same AI</p>
 </aside>
 </section>
-
-<section id="roofline-modeling" class="title-slide slide level1">
-<h1>Roofline Modeling</h1>
+<section id="the-roofline-model" class="slide level2">
+<h2>The Roofline Model</h2>
 <p><span class="math display">\[P = \text{min}(P_\text{max}, I \times B_\text{mem})\]</span></p>
 <ul>
 <li><span class="math inline">\(P\)</span>: Performance (FLOP/s)</li>
@@ -318,11 +299,40 @@ void kernel(int i, double a, double b, double *x, double *y) {
 <p>ECM is an alternative model</p>
 <p>We want to keep things very simple and just emphasize the role of bandwidth.</p>
 </aside>
-</section>
-
+</section></section>
 <section>
 <section id="peak-bandwidth" class="title-slide slide level1">
 <h1>Peak Bandwidth</h1>
+<p><img data-src="img/skylake_mem_block_diagram.svg" class="float float" style="width:45.0%" alt="image" /></p>
+<table>
+<thead>
+<tr class="header">
+<th>Platform</th>
+<th>BW (GB/s)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>x86 (cache)</td>
+<td>8600</td>
+</tr>
+<tr class="even">
+<td>x86 (RAM)</td>
+<td>141</td>
+</tr>
+<tr class="odd">
+<td>Volta (RAM)</td>
+<td>900</td>
+</tr>
+</tbody>
+</table>
+<aside class="notes">
+<p>"x86" is the Cascade Lake used in the previous figures</p>
+<p>"cache" refers to the L1 &lt;-&gt; register transfer speed</p>
+</aside>
+</section>
+<section id="computing-bandwidth" class="slide level2">
+<h2>Computing Bandwidth</h2>
 <table>
 <thead>
 <tr class="header">
@@ -363,7 +373,7 @@ void kernel(int i, double a, double b, double *x, double *y) {
 </section>
 <section id="x86-cache-bandwidth" class="slide level2">
 <h2>x86 Cache Bandwidth</h2>
-<p><img data-src="img/skylake_mem_block_diagram.svg" alt="image" /></p>
+<p><img data-src="img/skylake_mem_block_diagram.svg" style="width:65.0%" alt="image" /></p>
 <p>Three 64B + AGU ports, but only 2 AGU are usable</p>
 <aside class="notes">
 <p><a href="https://blogs.fau.de/hager/archives/8683">https://blogs.fau.de/hager/archives/8683</a></p>
@@ -377,8 +387,8 @@ void kernel(int i, double a, double b, double *x, double *y) {
 <p>2 FLOPs per 3×8 bytes: <span class="math inline">\(\frac{1}{12}\)</span></p>
 </section>
 
-<section id="peak-daxpy" class="title-slide slide level1">
-<h1>Peak DAXPY</h1>
+<section id="peak-euler" class="title-slide slide level1">
+<h1>Peak Euler</h1>
 <table>
 <thead>
 <tr class="header">
@@ -434,7 +444,7 @@ void kernel(int i, double a, double b, double *x, double *y) {
 <pre class="c"><code>y[i] = a * x[i] + b * (x[i+1] +  x[i-1])
 
 x[i] = y[i]</code></pre>
-<p>4 FLOPs (amortized) per 4×8 bytes: <span class="math inline">\(\frac{1}{8}\)</span> (...?)</p>
+<p>4 FLOPs (amortized) per 4×8 bytes: <span class="math inline">\(\frac{1}{8}\)</span></p>
 </section>
 <section id="how-many-flops" class="slide level2">
 <h2>How many FLOPS?</h2>
@@ -523,8 +533,8 @@ x[i] = y[i]</code></pre>
 </aside>
 </section>
 
-<section id="staging-penalty" class="title-slide slide level1">
-<h1>Staging Penalty</h1>
+<section id="diffusion-stages" class="title-slide slide level1">
+<h1>Diffusion Stages</h1>
 <table>
 <thead>
 <tr class="header">
@@ -579,7 +589,7 @@ x[i] = y[i]</code></pre>
 </ul></li>
 <li><p>Using a "benchmark" single-core test</p>
 <ul>
-<li>Reasonble set of realistic components</li>
+<li>Reasonable set of realistic components</li>
 <li>A non-trivial land/sea distribution</li>
 </ul></li>
 <li><p>Not necessarily the most physically signficant factors. Just the ones which had a significant impact on performance.</p></li>
@@ -613,10 +623,9 @@ x[i] = y[i]</code></pre>
 <li>Most ocean model solvers are bandwidth-limited</li>
 <li>Arithmetic intensity (AI) is a predictor of performance</li>
 <li>CPUs benefit from modest arrays, but can tolerate larger ones</li>
-<li>GPUS <em>strongly favor</em> large arrays, and implicit (matrix) solvers</li>
+<li>GPUs <em>strongly favor</em> large arrays, and implicit (matrix) solvers</li>
 <li>AI can be used to strategize optimization</li>
 </ul>
-<p>Maximize FLOPs <strong>within context of the solver</strong>, but never stop considering better methods</p>
 </section>
     </div>
   </div>

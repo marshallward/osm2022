@@ -61,9 +61,9 @@
          width: 30%"
          alt="NCI">
   </div-->
-  <h1 class="title">Estimating and measuring peak performance of numerical ocean model algorithms</h1>
+  <h2 class="title">Estimating and measuring peak performance of numerical ocean model algorithms</h2>
   <p class="author" style="text-align: right;">Marshall Ward</p>
-  <p class="organization" style="text-align: right;"><p>NOAA-GFDL</p></p>
+  <p class="organization" style="text-align: right;">NOAA-GFDL</p>
   <p class="date" style="text-align: right;">March 1, 2022</p>
   <!-- Currently cannot add notes to a title slide, so have to do manually-->
   <aside class="notes">
@@ -81,7 +81,7 @@
 <dd><p>Simulation time per runtime</p>
 </dd>
 <dt>Computational performance</dt>
-<dd><p>Operations per second (watt, etc)</p>
+<dd><p>Operations per second (FLOPs, Watts ...)</p>
 </dd>
 </dl>
 <aside class="notes">
@@ -119,18 +119,12 @@
 </thead>
 <tbody>
 <tr class="odd">
-<td>Broadwell</td>
-<td>2016</td>
-<td>1555.2</td>
-<td>1553.0</td>
-</tr>
-<tr class="even">
 <td>Cascade Lake</td>
 <td>2019</td>
 <td>2150.4</td>
 <td>2145.3</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Volta (GPU)</td>
 <td>2018</td>
 <td>7065.6</td>
@@ -143,9 +137,6 @@
 <section id="how-we-compute" class="slide level2">
 <h2>How we compute</h2>
 <dl>
-<dt>Broadwell</dt>
-<dd><p>36 core × 4 (AVX) × 2 (FMA) × 2 port × 2.7 GHz</p>
-</dd>
 <dt>Cascade Lake</dt>
 <dd><p>24 core × 8 (AVX512) × 2 (FMA) × 2 port × 2.8 GHz</p>
 </dd>
@@ -168,20 +159,13 @@
 </thead>
 <tbody>
 <tr class="odd">
-<td>Broadwell</td>
-<td>1553.0</td>
-<td>2016</td>
-<td>$2702</td>
-<td>145</td>
-</tr>
-<tr class="even">
 <td>Cascade Lake</td>
 <td>2145.3</td>
 <td>2019</td>
 <td>$6432</td>
 <td>240</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Volta (GPU)</td>
 <td>7007.3</td>
 <td>2018</td>
@@ -191,15 +175,12 @@
 </tbody>
 </table>
 <aside class="notes">
-<p>Broadwell: Q1'16 Cascade Lake: Q2'19 Volta V100: Q1'18</p>
+<p>Cascade Lake: Q2'19 Volta V100: Q1'18</p>
 </aside>
 </section>
 <section id="models" class="slide level2">
 <h2>Models</h2>
 <dl>
-<dt>Broadwell</dt>
-<dd><p>Intel(R) Xeon(R) CPU E5-2697 v4 @ 2.30GHz</p>
-</dd>
 <dt>Cascade Lake</dt>
 <dd><p>Intel(R) Xeon(R) Platinum 8274 CPU @ 3.20GHz</p>
 </dd>
@@ -240,41 +221,40 @@
 <h1>Compute Bound</h1>
 <p>Matrix Multiplication (<code>DGEMM</code>)</p>
 <p><span class="math display">\[\text{C}_{ij} = \sum_{k} A_{ik} B_{kj}\]</span><span class="math display">\[\frac{\text{FLOPs}}{\text{byte}}
-   = \frac{3n^3}{2n^2 \times \texttt{sizeof}(A)}
-   = \frac{3}{16} n\]</span></p>
-<p>Efficiency (as work/byte) increases as problem grows</p>
+   = \frac{2n^3}{3n^2 \times \texttt{sizeof}(A)}
+   = \frac{1}{12} n\]</span></p>
+<p>Efficiency (work/byte) increases as problem grows</p>
 </section>
 
 <section id="memory-bound" class="title-slide slide level1">
 <h1>Memory Bound</h1>
 <p>Field update (<code>DAXPY</code>)</p>
-<p><span class="math display">\[\phi_{ijk} = \phi_{ijk} + \Delta t \mathcal{F}_{ijk}\]</span><span class="math display">\[\frac{\text{FLOPs}}{\text{byte}}
+<p><span class="math display">\[\phi_{i} = \phi_{i} + \Delta t \mathcal{F}_{i}\]</span><span class="math display">\[\frac{\text{FLOPs}}{\text{byte}}
    = \frac{2n}{3n \times \texttt{sizeof} (\phi)}
    = \frac{1}{12}\]</span></p>
-<p>Work grows in proportion to bandwidth cost</p>
+<p>Bandwidth cost rises in proportion to work</p>
+</section>
+
+<section id="traditional-cfd" class="title-slide slide level1">
+<h1>Traditional CFD</h1>
+<p>Most solvers are hyperbolic and elliptic, e.g.:</p>
+<p><span class="math display">\[\frac{\partial \mathbf{u}}{\partial t} =
+      - \mathbf{u} \cdot \nabla \mathbf{u} -\nabla p + \mathcal{F}\]</span><span class="math display">\[\nabla^2 p = -\nabla \left( \mathbf{u} \cdot \nabla \mathbf{u} \right)
+      - \nabla \cdot \mathcal{F}\]</span></p>
+<p>Pressure (Montgomery potential, PV, ...) solver is a (sparse) matrix operation.</p>
+</section>
+
+<section id="ocean-cfd" class="title-slide slide level1">
+<h1>Ocean CFD</h1>
+<p>Hydrostatic balance eliminates elliptic step:</p>
+<p><span class="math display">\[\frac{\partial \mathbf{u}}{\partial t} =
+      - \mathbf{u} \cdot \nabla \mathbf{u} -\nabla p + \mathcal{F}\]</span><span class="math display">\[p = -g \rho\]</span><span class="math display">\[\frac{\partial \rho}{\partial t} = ...\]</span></p>
+<p>Most barotropic solvers are also hyperbolic.</p>
 </section>
 
 <section>
-<section id="what-is-our-ai" class="title-slide slide level1">
-<h1>What is our AI?</h1>
-<p>Traditional incompressible CFD</p>
-<p><span class="math display">\[\begin{aligned}
-\mathbf{u}^{*} =
-   \mathbf{u}^n + \Delta t \left(-\mathbf{u}^n \cdot \nabla \mathbf{u}^n +
-   \ldots \right) \\
-\end{aligned}\]</span><span class="math display">\[\begin{aligned}
-\nabla^2 p^{n+1} = -\nabla \cdot \mathbf{u}^* \\
-\end{aligned}\]</span><span class="math display">\[\begin{aligned}
-\mathbf{u}^{n+1} = \mathbf{u}^{*} - \nabla^2 p^{n+1} \\
-\end{aligned}\]</span></p>
-<p>Pressure solver is (sparse) matrix over 3D field</p>
-</section>
-<section id="atmospheric-solver" class="slide level2">
-<h2>Atmospheric Solver</h2>
-</section></section>
-<section>
-<section id="flop-performance" class="title-slide slide level1">
-<h1>FLOP performance</h1>
+<section id="array-performance" class="title-slide slide level1">
+<h1>Array Performance</h1>
 <p><img data-src="img/cascade_lake_flops.svg" alt="image" /></p>
 <aside class="notes">
 <p>Difference expressions will exhibit</p>
@@ -283,6 +263,7 @@
 <section id="how-these-are-produced" class="slide level2">
 <h2>How these are produced</h2>
 <pre class="c"><code>int main() {
+   /* ... */
    start(timer);
    for (r = 0; r &lt; r_max; r++) {
        for (int i = 0; i &lt; n; i++)
@@ -309,19 +290,14 @@ void kernel(int i, double a, double b, double *x, double *y) {
 <li>Depletion of registers</li>
 </ul>
 </section></section>
-<section>
-<section id="performance-model" class="title-slide slide level1">
-<h1>Performance Model</h1>
+<section id="arithmetic-intensity" class="title-slide slide level1">
+<h1>Arithmetic Intensity</h1>
 <p><img data-src="img/cascade_lake_roofline.svg" style="width:60.0%" alt="image" /></p>
 <aside class="notes">
 <p>Adjacent lines have the same AI</p>
 </aside>
 </section>
-<section id="write-allocate" class="slide level2">
-<h2>Write-Allocate</h2>
-<p>NOTE: Although most x86 have two Load ports and one store port, they can usually only decode two addresses per cycle! So the net bandwidth is almost always 1L+1S, or 2L with no store.</p>
-<p><em>TODO: Make this into a readable slide</em></p>
-</section></section>
+
 <section id="roofline-modeling" class="title-slide slide level1">
 <h1>Roofline Modeling</h1>
 <p><span class="math display">\[P = \text{min}(P_\text{max}, I \times B_\text{mem})\]</span></p>
@@ -331,7 +307,7 @@ void kernel(int i, double a, double b, double *x, double *y) {
 <li><span class="math inline">\(I\)</span>: Arithmetic Intensity (FLOP/byte)</li>
 <li><span class="math inline">\(B_\text{mem}\)</span>: Memory bandwidth (byte/s) (cache, RAM, ...)</li>
 </ul>
-<p>For our codes, <span class="math inline">\(P = I \times B_\text{mem}\)</span></p>
+<p>For our codes, often <span class="math inline">\(P = I \times B_\text{mem}\)</span></p>
 <aside class="notes">
 <p>Roofline is a useful model for estimating how well we ought to do</p>
 <p>However, it can be hard to apply in practice due to a few issues</p>
@@ -345,15 +321,15 @@ void kernel(int i, double a, double b, double *x, double *y) {
 </section>
 
 <section>
-<section id="modeling-our-results" class="title-slide slide level1">
-<h1>Modeling our results</h1>
+<section id="peak-bandwidth" class="title-slide slide level1">
+<h1>Peak Bandwidth</h1>
 <table>
 <thead>
 <tr class="header">
 <th>Platform</th>
 <th>Speed (GHz)</th>
 <th>Width (B)</th>
-<th>Bandwidth (GB/s)</th>
+<th>BW (GB/s)</th>
 </tr>
 </thead>
 <tbody>
@@ -365,7 +341,7 @@ void kernel(int i, double a, double b, double *x, double *y) {
 </tr>
 <tr class="even">
 <td>x86 RAM</td>
-<td>2.933</td>
+<td>2.93</td>
 <td>8 × 6</td>
 <td>141</td>
 </tr>
@@ -380,24 +356,25 @@ void kernel(int i, double a, double b, double *x, double *y) {
 <ul>
 <li>AVX512 clock speed, L1 load+store, etc</li>
 </ul>
+<aside class="notes">
+<p>"x86" is the Cascade Lake used in the previous figures</p>
+<p>"cache" refers to the L1 &lt;-&gt; register transfer speed</p>
+</aside>
 </section>
 <section id="x86-cache-bandwidth" class="slide level2">
 <h2>x86 Cache Bandwidth</h2>
-<p><img data-src="img/skylake_reduced_block_diagram.svg" alt="image" /></p>
-<p>Cascade Lake has three 64B ports, but in practice can only use two per cycle.</p>
-<div class="note">
-<div class="title">
-<p>Note</p>
-</div>
+<p><img data-src="img/skylake_mem_block_diagram.svg" alt="image" /></p>
+<p>Three 64B + AGU ports, but only 2 AGU are usable</p>
+<aside class="notes">
 <p><a href="https://blogs.fau.de/hager/archives/8683">https://blogs.fau.de/hager/archives/8683</a></p>
-</div>
+</aside>
 </section></section>
 <section id="euler-step" class="title-slide slide level1">
 <h1>Euler Step</h1>
 <p><span class="math display">\[\phi^{n+1}_i = \phi^n_i
    + \Delta t \left( \frac{\partial \phi}{\partial t} \right)_i\]</span></p>
 <pre class="c"><code>y[i] = y[i] + a * x[i]</code></pre>
-<p>2 FLOPs per 24 bytes: <span class="math inline">\(\frac{1}{12}\)</span>*</p>
+<p>2 FLOPs per 3×8 bytes: <span class="math inline">\(\frac{1}{12}\)</span></p>
 </section>
 
 <section id="peak-daxpy" class="title-slide slide level1">
@@ -406,29 +383,29 @@ void kernel(int i, double a, double b, double *x, double *y) {
 <thead>
 <tr class="header">
 <th>Platform</th>
-<th>Theory</th>
 <th>Observed</th>
+<th>Theory</th>
 <th>%</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
 <td>x86 (Cache)</td>
-<td>716.8</td>
 <td>715.1</td>
+<td>716.8</td>
 <td>99.7</td>
 </tr>
 <tr class="even">
 <td>x86 (RAM)</td>
-<td>11.8</td>
 <td>9.36</td>
+<td>11.8</td>
 <td>79.3</td>
 </tr>
 <tr class="odd">
 <td>GPU</td>
+<td>67.3</td>
 <td>74.8</td>
-<td>70.9</td>
-<td>94.8</td>
+<td>89.9</td>
 </tr>
 </tbody>
 </table>
@@ -457,56 +434,7 @@ void kernel(int i, double a, double b, double *x, double *y) {
 <pre class="c"><code>y[i] = a * x[i] + b * (x[i+1] +  x[i-1])
 
 x[i] = y[i]</code></pre>
-<p>4 FLOPs (amortized) per 4 I/O moves: frac{1}{8}</p>
-</section>
-<section id="results" class="slide level2">
-<h2>Results</h2>
-<table>
-<thead>
-<tr class="header">
-<th>Platform</th>
-<th>+1</th>
-<th>+8</th>
-<th>Theory</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>x86 (Cache)</td>
-<td>732.7</td>
-<td>1071.0</td>
-<td>1075.2</td>
-</tr>
-<tr class="even">
-<td>x86 (RAM)</td>
-<td>18.8</td>
-<td>18.9</td>
-<td>35.2</td>
-</tr>
-<tr class="odd">
-<td>GPU</td>
-<td>162.0</td>
-<td>162.1</td>
-<td>224.5</td>
-</tr>
-</tbody>
-</table>
-<aside class="notes">
-<p>x86 cache: 64 B/cyc * 2.8G cyc/sec * 0.25 FLOP/byte = 1075.2</p>
-<dl>
-<dt>x86 RAM: 2.933 GHz * 8B * 6ch = 140.8 GB/s</dt>
-<dd><ul>
-<li>NOTE: We typically measure ~</li>
-</ul>
-</dd>
-<dt>write-allocate is needed to understand this lower 75 GB/s estimate</dt>
-<dd><p>115 = 75 * 1.5</p>
-</dd>
-</dl>
-<p>The 80% efficiency is not really something I can understand...</p>
-<p><a href="https://blogs.fau.de/hager/archives/8263">https://blogs.fau.de/hager/archives/8263</a></p>
-<p><a href="https://www.cs.virginia.edu/stream/ref.html#counting">https://www.cs.virginia.edu/stream/ref.html#counting</a></p>
-</aside>
+<p>4 FLOPs (amortized) per 4×8 bytes: <span class="math inline">\(\frac{1}{8}\)</span> (...?)</p>
 </section>
 <section id="how-many-flops" class="slide level2">
 <h2>How many FLOPS?</h2>
@@ -519,12 +447,111 @@ x[i] = y[i]</code></pre>
 <pre class=""><code>y[i] = a * x[i] + b * (x[i-1] + x[i+1])</code></pre>
 <p>This is a compiler question: Do we follow parentheses?</p>
 </section></section>
-<section id="square-root" class="title-slide slide level1">
-<h1>Square Root</h1>
-<ul>
-<li>without -ffast-math</li>
-<li>with -ffast-math</li>
-</ul>
+<section id="diffusion-performance" class="title-slide slide level1">
+<h1>Diffusion Performance</h1>
+<table>
+<thead>
+<tr class="header">
+<th>Platform</th>
+<th>+1</th>
+<th>+8</th>
+<th>Theory</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>x86 (Cache)</td>
+<td>499.9</td>
+<td>646.9</td>
+<td>1075.2</td>
+</tr>
+<tr class="even">
+<td>x86 (RAM)</td>
+<td>10.5</td>
+<td>10.5</td>
+<td>17.6</td>
+</tr>
+<tr class="odd">
+<td>GPU</td>
+<td>81.1</td>
+<td>81.1</td>
+<td>112.3</td>
+</tr>
+</tbody>
+</table>
+<p>Prediction is significantly higher for <span class="math inline">\(I = \frac{1}{8}\)</span> ?</p>
+</section>
+
+<section id="write-allocated-diffusion" class="title-slide slide level1">
+<h1>Write-Allocated Diffusion</h1>
+<table>
+<thead>
+<tr class="header">
+<th>Platform</th>
+<th>+1</th>
+<th>+8</th>
+<th>Theory</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>x86 (Cache)</td>
+<td>499.9</td>
+<td>646.9</td>
+<td>716.8</td>
+</tr>
+<tr class="even">
+<td>x86 (RAM)</td>
+<td>10.5</td>
+<td>10.5</td>
+<td>11.7</td>
+</tr>
+<tr class="odd">
+<td>GPU</td>
+<td>81.1</td>
+<td>81.1</td>
+<td>112.3</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Write-allocate</strong>: An x86 write (<code>y[:] =</code>) includes a read!</p>
+<p>Arithmetic intensity is adjusted to <span class="math inline">\(\frac{1}{12}\)</span> (6 moves)</p>
+<aside class="notes">
+<p><a href="https://blogs.fau.de/hager/archives/8263">https://blogs.fau.de/hager/archives/8263</a></p>
+<p><a href="https://www.cs.virginia.edu/stream/ref.html#counting">https://www.cs.virginia.edu/stream/ref.html#counting</a></p>
+<p>Also, Volta seems to have no such issue</p>
+</aside>
+</section>
+
+<section id="staging-penalty" class="title-slide slide level1">
+<h1>Staging Penalty</h1>
+<table>
+<thead>
+<tr class="header">
+<th>Stage</th>
+<th>Observed</th>
+<th>Theory</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(y \leftarrow a x + b (x^{-} + x^{+})\)</span></td>
+<td>1057 GF/s</td>
+<td>1075 GF/s</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(x \leftarrow y\)</span></td>
+<td>6878 GB/s</td>
+<td>8601 GB/s</td>
+</tr>
+</tbody>
+</table>
+<p>Copies in general tend to be suboptimal</p>
+<p>(Although better than write-allocate)</p>
+<aside class="notes">
+<p>One issue is that optimal copy is different from optimal compute. I do not know why.</p>
+<p>Copy is also more sensitive to peel loops than compute. (Again, dunno why)</p>
+</aside>
 </section>
 
 <section id="evaluating-model-performance" class="title-slide slide level1">
@@ -540,10 +567,8 @@ x[i] = y[i]</code></pre>
 <li>"Benchmark" configuration:
 <ul>
 <li>Split barotropic</li>
-<li>Smagorinsky biharmonic</li>
-<li>Thermo, Wright EOS</li>
-<li>Bounded Coriolis terms</li>
-<li>Layered (no ALE)</li>
+<li>Thermodynamic EOS</li>
+<li>Parameterization suite</li>
 </ul></li>
 </ul>
 <aside class="notes">
@@ -562,66 +587,36 @@ x[i] = y[i]</code></pre>
 </aside>
 </section>
 
-<section id="overview" class="title-slide slide level1">
-<h1>Overview</h1>
+<section id="mom6-performance" class="title-slide slide level1">
+<h1>MOM6 Performance</h1>
 <p><img data-src="img/mom6_subrt_flops.svg" alt="image" /></p>
 </section>
 
+<section>
 <section id="mom6-roofline" class="title-slide slide level1">
 <h1>MOM6 Roofline</h1>
-<p><img data-src="img/mom6_roofline.svg" alt="image" /></p>
+<p><img data-src="img/mom6_roofline.svg" style="width:80.0%" alt="image" /></p>
 </section>
-
-<section id="resource-monitoring" class="title-slide slide level1">
-<h1>Resource Monitoring</h1>
-<table>
-<colgroup>
-<col style="width: 55%" />
-<col style="width: 45%" />
-</colgroup>
-<tbody>
-<tr class="odd">
-<td><a href="https://github.com/marshallward/MOM6/runs/2640839721?check_suite_focus=true"><img data-src="img/github_perf.png" alt="image" /></a></td>
-<td><ul>
-<li>Expose perf metrics to CI</li>
-<li>Challenges abound...</li>
-</ul></td>
-</tr>
-</tbody>
-</table>
+<section id="mom6-all-subroutines" class="slide level2">
+<h2>MOM6: All subroutines</h2>
+<p><img data-src="img/mom6_roofline_all_1x.svg" style="width:80.0%" alt="image" /></p>
+<p>Largely memory-bound, with notable exceptions</p>
 </section>
-
-<section id="hierarchy-of-performance" class="title-slide slide level1">
-<h1>Hierarchy of Performance</h1>
-<ul>
-<li><p>Implement algorithm</p></li>
-<li><p>Measure arithmetic intensity (AI)</p></li>
-<li><p>Verify vectorization</p>
-<ul>
-<li>Eliminate unfavorable structures (<strong>do-if-do</strong>)</li>
-</ul></li>
-<li><p>Reduce array size</p>
-<ul>
-<li>~1000-2000 iterations seems ideal</li>
-</ul></li>
-<li><p>Optimize pipeline: 1 Op/cycle</p>
-<ul>
-<li>Co-locate read/write access</li>
-</ul></li>
-<li><p>Diagnose performance as % of theoretical peak (wrt hardware &amp; AI)</p></li>
-</ul>
-</section>
-
+<section id="mom6-16x-domain" class="slide level2">
+<h2>MOM6: 16x Domain</h2>
+<p><img data-src="img/mom6_roofline_all_4x.svg" style="width:80.0%" alt="image" /></p>
+<p>Memory-bound shift as domain size increases</p>
+</section></section>
 <section id="summary" class="title-slide slide level1">
 <h1>Summary</h1>
 <ul>
-<li>Ocean models in their current form are unlikely to ever perform at peak performance, and will always be bandwidth-limited.</li>
-<li>Arithmetic intensity, with machine bandwidths, is a reliable predictor of computational performance</li>
-<li>CPUs benefit from modest arrays, can tolerate large arrays</li>
-<li>GPUs thrive on large arrays, run poorly on</li>
-<li>Best thing we can do is <em>monitor</em> and <em>adjust</em> this situation</li>
-<li>Maximize FLOPs <strong>within context of the solver</strong>, but never stop considering better methods</li>
+<li>Most ocean model solvers are bandwidth-limited</li>
+<li>Arithmetic intensity (AI) is a predictor of performance</li>
+<li>CPUs benefit from modest arrays, but can tolerate larger ones</li>
+<li>GPUS <em>strongly favor</em> large arrays, and implicit (matrix) solvers</li>
+<li>AI can be used to strategize optimization</li>
 </ul>
+<p>Maximize FLOPs <strong>within context of the solver</strong>, but never stop considering better methods</p>
 </section>
     </div>
   </div>

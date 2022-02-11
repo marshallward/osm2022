@@ -22,7 +22,7 @@ Operational performance
    Simulation time per runtime
 
 Computational performance
-   Operations per second (watt, etc)
+   Operations per second (FLOPs, Watts ...)
 
 
 .. notes::
@@ -71,7 +71,6 @@ Peak Performance
 ============   ===== =========== ========
 Platform       Year  Theoretical Observed
 ============   ===== =========== ========
-Broadwell      2016  1555.2      1553.0
 Cascade Lake   2019  2150.4      2145.3
 Volta (GPU)    2018  7065.6      7007.3
 ============   ===== =========== ========
@@ -81,9 +80,6 @@ But are these numbers achievable?
 
 How we compute
 --------------
-
-Broadwell
-   36 core × 4 (AVX) × 2 (FMA) × 2 port × 2.7 GHz
 
 Cascade Lake
    24 core × 8 (AVX512) × 2 (FMA) × 2 port × 2.8 GHz
@@ -98,23 +94,18 @@ Cost of Business
 ============   ======== ===== ===== ======
 Platform       FLOPs    Year  Price TDP(W)
 ============   ======== ===== ===== ======
-Broadwell      1553.0   2016  $2702 145
 Cascade Lake   2145.3   2019  $6432 240
 Volta (GPU)    7007.3   2018  $8999 250
 ============   ======== ===== ===== ======
 
 .. notes::
 
-   Broadwell: Q1'16
    Cascade Lake: Q2'19
    Volta V100: Q1'18
 
 
 Models
 ------
-
-Broadwell
-   Intel(R) Xeon(R) CPU E5-2697 v4 @ 2.30GHz
 
 Cascade Lake
    Intel(R) Xeon(R) Platinum 8274 CPU @ 3.20GHz
@@ -165,10 +156,10 @@ Matrix Multiplication (``DGEMM``)
    \text{C}_{ij} = \sum_{k} A_{ik} B_{kj}
 
    \frac{\text{FLOPs}}{\text{byte}}
-      = \frac{3n^3}{2n^2 \times \texttt{sizeof}(A)}
-      = \frac{3}{16} n
+      = \frac{2n^3}{3n^2 \times \texttt{sizeof}(A)}
+      = \frac{1}{12} n
 
-Efficiency (as work/byte) increases as problem grows
+Efficiency (work/byte) increases as problem grows
 
 
 Memory Bound
@@ -178,42 +169,51 @@ Field update (``DAXPY``)
 
 .. math::
 
-   \phi_{ijk} = \phi_{ijk} + \Delta t \mathcal{F}_{ijk}
+   \phi_{i} = \phi_{i} + \Delta t \mathcal{F}_{i}
 
    \frac{\text{FLOPs}}{\text{byte}}
       = \frac{2n}{3n \times \texttt{sizeof} (\phi)}
       = \frac{1}{12}
 
-Work grows in proportion to bandwidth cost
+Bandwidth cost rises in proportion to work
 
 
-What is our AI?
+Traditional CFD
 ===============
 
-Traditional incompressible CFD
+Most solvers are hyperbolic and elliptic, e.g.:
 
 .. math::
 
-   \mathbf{u}^{*} =
-      \mathbf{u}^n + \Delta t \left(-\mathbf{u}^n \cdot \nabla \mathbf{u}^n +
-      \ldots \right) \\
+   \frac{\partial \mathbf{u}}{\partial t} =
+         - \mathbf{u} \cdot \nabla \mathbf{u} -\nabla p + \mathcal{F}
 
-   \nabla^2 p^{n+1} = -\nabla \cdot \mathbf{u}^* \\
+   \nabla^2 p = -\nabla \left( \mathbf{u} \cdot \nabla \mathbf{u} \right)
+         - \nabla \cdot \mathcal{F} 
 
-   \mathbf{u}^{n+1} = \mathbf{u}^{*} - \nabla^2 p^{n+1} \\
-
-Pressure solver is (sparse) matrix over 3D field
+Pressure (Montgomery potential, PV, ...) solver is a (sparse) matrix operation.
 
 
-Atmospheric Solver
-------------------
+Ocean CFD
+=========
+
+Hydrostatic balance eliminates elliptic step:
+
+.. math::
+
+   \frac{\partial \mathbf{u}}{\partial t} =
+         - \mathbf{u} \cdot \nabla \mathbf{u} -\nabla p + \mathcal{F}
+
+   p = -g \rho
+
+   \frac{\partial \rho}{\partial t} = ...
+
+Most barotropic solvers are also hyperbolic.
 
 
 
-
-
-FLOP performance
-================
+Array Performance
+=================
 
 .. image:: img/cascade_lake_flops.svg
 
@@ -228,6 +228,7 @@ How these are produced
 .. code:: c
 
    int main() {
+      /* ... */
       start(timer);
       for (r = 0; r < r_max; r++) {
           for (int i = 0; i < n; i++)
@@ -260,8 +261,8 @@ Unaccounted Factors
 * Depletion of registers
 
 
-Performance Model
-=================
+Arithmetic Intensity
+====================
 
 .. image:: img/cascade_lake_roofline.svg
    :width: 60%
@@ -269,16 +270,6 @@ Performance Model
 .. notes::
 
    Adjacent lines have the same AI
-
-
-Write-Allocate
---------------
-
-NOTE: Although most x86 have two Load ports and one store port, they can
-usually only decode two addresses per cycle!  So the net bandwidth is almost
-always 1L+1S, or 2L with no store.
-
-*TODO: Make this into a readable slide*
 
 
 Roofline Modeling
@@ -296,7 +287,7 @@ Roofline Modeling
 
 * :math:`B_\text{mem}`: Memory bandwidth (byte/s) (cache, RAM, ...)
 
-For our codes, :math:`P = I \times B_\text{mem}`
+For our codes, often :math:`P = I \times B_\text{mem}`
 
 .. notes::
 
@@ -314,28 +305,34 @@ For our codes, :math:`P = I \times B_\text{mem}`
    We want to keep things very simple and just emphasize the role of bandwidth.
 
 
-Modeling our results
-====================
+Peak Bandwidth
+==============
 
 ==========  =========== =========   ================
-Platform    Speed (GHz) Width (B)   Bandwidth (GB/s)
+Platform    Speed (GHz) Width (B)   BW (GB/s)
 ==========  =========== =========   ================
 x86 cache   2.8*        128*        8600
-x86 RAM     2.933       8 × 6       141
+x86 RAM     2.93        8 × 6       141
 Volta RAM   877         1024        900
 ==========  =========== =========   ================
 
 * AVX512 clock speed, L1 load+store, etc
 
+.. notes::
+
+   "x86" is the Cascade Lake used in the previous figures
+
+   "cache" refers to the L1 <-> register transfer speed
+
 
 x86 Cache Bandwidth
 -------------------
 
-.. image:: img/skylake_reduced_block_diagram.svg
+.. image:: img/skylake_mem_block_diagram.svg
 
-Cascade Lake has three 64B ports, but in practice can only use two per cycle.
+Three 64B + AGU ports, but only 2 AGU are usable
 
-.. note::
+.. notes::
 
    https://blogs.fau.de/hager/archives/8683
 
@@ -352,19 +349,19 @@ Euler Step
 
    y[i] = y[i] + a * x[i]
 
-2 FLOPs per 24 bytes: :math:`\frac{1}{12}`\*
+2 FLOPs per 3×8 bytes: :math:`\frac{1}{12}`
 
 
 Peak DAXPY
 ==========
 
-=========== ======   ======== ====
-Platform    Theory   Observed %
-=========== ======   ======== ====
-x86 (Cache) 716.8    715.1    99.7
-x86 (RAM)   11.8     9.36     79.3
-GPU         74.8     70.9     94.8
-=========== ======   ======== ====
+=========== ======== ======   ====
+Platform    Observed Theory   %
+=========== ======== ======   ====
+x86 (Cache) 715.1    716.8    99.7
+x86 (RAM)   9.36     11.8     79.3
+GPU         67.3     74.8     89.9
+=========== ======== ======   ====
 
 .. notes::
 
@@ -397,36 +394,7 @@ Finite Difference
 
    x[i] = y[i]
 
-4 FLOPs (amortized) per 4 I/O moves: \frac{1}{8}
-
-
-Results
--------
-
-
-=========== ===== ======   ======
-Platform    +1    +8       Theory
-=========== ===== ======   ======
-x86 (Cache) 732.7 1071.0   1075.2
-x86 (RAM)   18.8  18.9     35.2
-GPU         162.0 162.1    224.5
-=========== ===== ======   ======
-
-.. notes::
-
-   x86 cache: 64 B/cyc * 2.8G cyc/sec * 0.25 FLOP/byte = 1075.2
-
-   x86 RAM: 2.933 GHz * 8B * 6ch = 140.8 GB/s
-      - NOTE: We typically measure ~
-
-   write-allocate is needed to understand this lower 75 GB/s estimate
-      115 = 75 * 1.5
-
-   The 80% efficiency is not really something I can understand...
-
-   https://blogs.fau.de/hager/archives/8263
-
-   https://www.cs.virginia.edu/stream/ref.html#counting
+4 FLOPs (amortized) per 4×8 bytes: :math:`\frac{1}{8}` (...?)
 
 
 How many FLOPS?
@@ -455,11 +423,71 @@ Is it four or five operations?
 This is a compiler question: Do we follow parentheses?
 
 
-Square Root
-===========
+Diffusion Performance
+=====================
 
-* without -ffast-math
-* with -ffast-math
+=========== ===== ======   ======
+Platform    +1    +8       Theory 
+=========== ===== ======   ======
+x86 (Cache) 499.9 646.9    1075.2
+x86 (RAM)   10.5  10.5     17.6
+GPU         81.1  81.1     112.3
+=========== ===== ======   ======
+
+Prediction is significantly higher for :math:`I = \frac{1}{8}` ?
+
+
+Write-Allocated Diffusion
+=========================
+
+=========== ===== ======   ======
+Platform    +1    +8       Theory
+=========== ===== ======   ======
+x86 (Cache) 499.9 646.9    716.8
+x86 (RAM)   10.5  10.5     11.7
+GPU         81.1  81.1     112.3
+=========== ===== ======   ======
+
+**Write-allocate**: An x86 write (``y[:] =``) includes a read!
+
+Arithmetic intensity is adjusted to :math:`\frac{1}{12}` (6 moves)
+
+.. notes::
+
+   https://blogs.fau.de/hager/archives/8263
+
+   https://www.cs.virginia.edu/stream/ref.html#counting
+
+   Also, Volta seems to have no such issue
+
+
+Staging Penalty
+===============
+
+============================================ =========   =========
+Stage                                        Observed    Theory
+============================================ =========   =========
+:math:`y \leftarrow a x + b (x^{-} + x^{+})` 1057 GF/s   1075 GF/s
+:math:`x \leftarrow y`                       6878 GB/s   8601 GB/s
+============================================ =========   =========
+
+Copies in general tend to be suboptimal
+
+(Although better than write-allocate)
+
+.. notes::
+
+   One issue is that optimal copy is different from optimal compute.
+   I do not know why.
+
+   Copy is also more sensitive to peel loops than compute.  (Again, dunno why)
+
+
+.. Square Root
+   ===========
+   
+   * without -ffast-math
+   * with -ffast-math
 
 
 Evaluating Model Performance
@@ -479,13 +507,10 @@ Evaluating Model Performance
 
   - Split barotropic
 
-  - Smagorinsky biharmonic
+  - Thermodynamic EOS
 
-  - Thermo, Wright EOS
+  - Parameterization suite
 
-  - Bounded Coriolis terms
-
-  - Layered (no ALE)
 
 .. notes::
 
@@ -502,8 +527,8 @@ Evaluating Model Performance
      which had a significant impact on performance.
 
 
-Overview
-========
+MOM6 Performance
+=================
 
 .. image:: img/mom6_subrt_flops.svg
 
@@ -512,61 +537,39 @@ MOM6 Roofline
 =============
 
 .. image:: img/mom6_roofline.svg
+   :width: 80%
 
 
-Resource Monitoring
-===================
+MOM6: All subroutines
+---------------------
+
+.. image:: img/mom6_roofline_all_1x.svg
+   :width: 80%
+
+Largely memory-bound, with notable exceptions
 
 
-.. list-table::
-   :widths: 55 45
+MOM6: 16x Domain
+----------------
 
-   * - .. image:: img/github_perf.png
-          :target: https://github.com/marshallward/MOM6/runs/2640839721?check_suite_focus=true
+.. image:: img/mom6_roofline_all_4x.svg
+   :width: 80%
 
-     - * Expose perf metrics to CI
-
-       * Challenges abound...
-
-
-Hierarchy of Performance
-========================
-
-* Implement algorithm
-
-* Measure arithmetic intensity (AI)
-
-* Verify vectorization
-
-  * Eliminate unfavorable structures (**do-if-do**)
-
-* Reduce array size
-
-  * ~1000-2000 iterations seems ideal
-
-* Optimize pipeline: 1 Op/cycle
-
-   * Co-locate read/write access
-
-* Diagnose performance as % of theoretical peak (wrt hardware & AI)
-
-
+Memory-bound shift as domain size increases
 
 
 Summary
 =======
+ 
+* Most ocean model solvers are bandwidth-limited
 
-* Ocean models in their current form are unlikely to ever perform at peak
-  performance, and will always be bandwidth-limited.
+* Arithmetic intensity (AI) is a predictor of performance
 
-* Arithmetic intensity, with machine bandwidths, is a reliable predictor of
-  computational performance
+* CPUs benefit from modest arrays, but can tolerate larger ones
 
-* CPUs benefit from modest arrays, can tolerate large arrays
+* GPUS *strongly favor* large arrays, and implicit (matrix) solvers
 
-* GPUs thrive on large arrays, run poorly on
+* AI can be used to strategize optimization
 
-* Best thing we can do is *monitor* and *adjust* this situation
-
-* Maximize FLOPs **within context of the solver**, but never stop
-  considering better methods
+Maximize FLOPs **within context of the solver**, but never stop
+considering better methods

@@ -93,7 +93,7 @@ $if(title)$
          width: 30%"
          alt="NCI">
   </div-->
-  <h1 class="title">$title$</h1>
+  <h2 class="title">$title$</h2>
 $if(subtitle)$
   <p class="subtitle" style="text-align: left;">$subtitle$</p>
 $endif$

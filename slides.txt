@@ -7,7 +7,7 @@ Estimating and measuring peak performance of numerical ocean model algorithms
               model algorithms
 :organization: NOAA-GFDL
 :date: March 1, 2022
-:url: https://marshallward.org/os2022.html
+:url: https://marshallward.org/osm2022.html
 :preface:
    "Performance" is overall a generic term which different meanings.
 

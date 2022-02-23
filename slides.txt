@@ -51,12 +51,12 @@ Peak Performance
    W_\text{FLOPS} = W_\text{core} \times N_\text{cores} \times f_\text{cycles}
 
 
-============   ===== =========== ========
-Platform       Year  Theoretical Observed
-============   ===== =========== ========
-Cascade Lake   2019  2150.4      2145.3
-Volta (GPU)    2018  7065.6      7007.3
-============   ===== =========== ========
+============   =========== ========
+Platform       Theoretical Observed
+============   =========== ========
+Cascade Lake   2150.4      2145.3
+Volta (GPU)    7065.6      7007.3
+============   =========== ========
 
 But are these numbers achievable?
 
@@ -97,7 +97,7 @@ Volta
    Nvidia Volta GV100 (1.38GHz)
 
 
-Performance Bounds
+Matrix Performance
 ==================
 
 .. image:: img/dgemm.svg
@@ -113,8 +113,8 @@ Performance Bounds
    Note: Optiflop DAXPY results agree with cuBLAS.
 
 
-Performance Bounds
-==================
+Array Performance
+=================
 
 .. image:: img/dgemm_vs_daxpy.svg
 
@@ -142,7 +142,7 @@ Matrix Multiplication (``DGEMM``)
       = \frac{2n^3}{3n^2 \times \texttt{sizeof}(A)}
       = \frac{1}{12} n
 
-Efficiency (work/byte) increases as problem grows
+*Arithmetic intensity* (AI) increases as problem grows
 
 
 Traditional CFD
@@ -174,7 +174,7 @@ Field update (``DAXPY``)
       = \frac{2n}{3n \times \texttt{sizeof} (\phi)}
       = \frac{1}{12}
 
-Bandwidth cost rises in proportion to work
+AI is independent of problem size
 
 
 Ocean CFD
@@ -195,8 +195,8 @@ Most barotropic solvers are also hyperbolic.
 
 
 
-Array Performance
-=================
+Performance Bounds
+==================
 
 .. image:: img/cascade_lake_flops.svg
 
@@ -302,7 +302,7 @@ Platform    BW (GB/s)
 =========== =========
 x86 (cache) 8600
 x86 (RAM)   141
-Volta (RAM) 900
+Volta (RAM) 898
 =========== =========
 
 .. notes::
@@ -320,7 +320,7 @@ Platform    Speed (GHz) Width (B)   BW (GB/s)
 ==========  =========== =========   ================
 x86 cache   2.8*        128*        8600
 x86 RAM     2.93        8 × 6       141
-Volta RAM   877         1024        900
+Volta RAM   877         1024        898
 ==========  =========== =========   ================
 
 * AVX512 clock speed, L1 load+store, etc
@@ -371,6 +371,8 @@ x86 (RAM)   9.36     11.8     79.3
 GPU         67.3     74.8     89.9
 =========== ======== ======   ====
 
+RAM efficiencies of 80-90% are common
+
 .. notes::
 
    x86 reg: (128 B/c * 2.8 GHz) * 24 cores * (1/8 FLOP/B)?
@@ -387,8 +389,8 @@ GPU         67.3     74.8     89.9
    I can't get this 70.9 number anymore..?  Now getting 67.3 or so.
 
 
-Finite Difference
-=================
+Diffusion Solver
+================
 
 .. math::
 
@@ -433,6 +435,20 @@ This is a compiler question: Do we follow parentheses?
 Diffusion Performance
 =====================
 
+=========== ======== ======   ====
+Platform    Observed Theory   %
+=========== ======== ======   ====
+x86 (Cache) 646.9    1075.2   60.1
+x86 (RAM)   10.5     17.6     59.7
+GPU         81.1     112.3    72.2
+=========== ======== ======   ====
+
+Observed is significantly lower for :math:`I = \frac{1}{8}` ?
+
+
+Aligned update
+--------------
+
 =========== ===== ======   ======
 Platform    +1    +8       Theory 
 =========== ===== ======   ======
@@ -441,23 +457,23 @@ x86 (RAM)   10.5  10.5     17.6
 GPU         81.1  81.1     112.3
 =========== ===== ======   ======
 
-Prediction is significantly higher for :math:`I = \frac{1}{8}` ?
+Single-displacement has a performance penalty
 
 
-Write-Allocated Diffusion
-=========================
+Write-Allocate Effect
+=====================
 
-=========== ===== ======   ======
-Platform    +1    +8       Theory
-=========== ===== ======   ======
-x86 (Cache) 499.9 646.9    716.8
-x86 (RAM)   10.5  10.5     11.7
-GPU         81.1  81.1     112.3
-=========== ===== ======   ======
+=========== ======== ======   ====
+Platform    Observed Theory   %
+=========== ======== ======   ====   
+x86 (Cache) 646.9    1075.2   60.1
+x86 (RAM)   10.5     11.7     89.7
+GPU         81.1     89.9     90.2
+=========== ======== ======   ====
 
-**Write-allocate**: An x86 write (``y[:] =``) includes a read!
+* x86 L1⇋RAM may include a read
 
-Arithmetic intensity is adjusted to :math:`\frac{1}{12}` (6 moves)
+* GPU L1⇋RAM observes a :math:`\frac{1}{2}`-read
 
 .. notes::
 
@@ -465,22 +481,23 @@ Arithmetic intensity is adjusted to :math:`\frac{1}{12}` (6 moves)
 
    https://www.cs.virginia.edu/stream/ref.html#counting
 
-   Also, Volta seems to have no such issue
+   No idea why GPU is a half-grid, but this is a hardware-implementation issue
 
 
-Diffusion Stages
-================
+Staging Penalty
+===============
 
-============================================ =========   =========
-Stage                                        Observed    Theory
-============================================ =========   =========
-:math:`y \leftarrow a x + b (x^{-} + x^{+})` 1057 GF/s   1075 GF/s
-:math:`x \leftarrow y`                       6878 GB/s   8601 GB/s
-============================================ =========   =========
+==========================================   =========   =========   ====
+Stage                                        Observed    Theory      %
+==========================================   =========   =========   ====
+:math:`y \leftarrow x + \alpha \nabla^2 x`   1057 GF/s   1075 GF/s   98.3
+:math:`x \leftarrow y`                       6878 GB/s   8601 GB/s   80.0
+S1 + S2                                      647 GF/s    1075 GF/s   60.1
+==========================================   =========   =========   ====
 
-Copies in general tend to be suboptimal
+Restarting on a new array incurs a performance penalty
 
-(Although better than write-allocate)
+**NOTE**: L1⇋RAM transfer obscures this cost!
 
 .. notes::
 
@@ -547,22 +564,33 @@ MOM6 Roofline
    :width: 80%
 
 
+.. MOM6: 16x Domain
+   ----------------
+   
+   .. image:: img/mom6_roofline_all_4x.svg
+      :width: 80%
+
+
 MOM6: All subroutines
 ---------------------
 
 .. image:: img/mom6_roofline_all_1x.svg
-   :width: 80%
-
-Largely memory-bound, with notable exceptions
+   :width: 60%
 
 
-MOM6: 16x Domain
-----------------
+Recent Speedups
+===============
 
-.. image:: img/mom6_roofline_all_4x.svg
-   :width: 80%
+=============  =============     =======
+Subroutine     Runtime           Speedup
+=============  =============     =======
+``hor_visc``   1.69s → 1.01s     1.67x
+``corAdCalc``  1.11s → 0.64s     1.74x
+=============  =============     =======
 
-Memory-bound shift as domain size increases
+Highest points correspond to recent optimization efforts
+
+(NOTE: Timings are from a different config)
 
 
 Summary

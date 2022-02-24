@@ -156,7 +156,7 @@ Most solvers are hyperbolic and elliptic, e.g.:
          - \mathbf{u} \cdot \nabla \mathbf{u} -\nabla p + \mathcal{F}
 
    \nabla^2 p = -\nabla \left( \mathbf{u} \cdot \nabla \mathbf{u} \right)
-         - \nabla \cdot \mathcal{F} 
+         - \nabla \cdot \mathcal{F}
 
 Pressure (Montgomery potential, PV, ...) solver is a (sparse) matrix operation.
 
@@ -250,7 +250,7 @@ Roofline Modeling
 .. image:: img/cascade_lake_roofline.svg
    :width: 50%
 
-:math:`P = I \times B_\text{mem}`
+:math:`W_\text{FLOPS} = I \times B_\text{mem}`
 
 .. notes::
 
@@ -262,17 +262,17 @@ The Roofline Model
 
 .. math::
 
-   P = \text{min}(P_\text{max}, I \times B_\text{mem})
+   W = \text{min}(W_\text{max}, I \times B_\text{mem})
 
-* :math:`P`: Performance (FLOP/s)
+* :math:`W`: Performance (FLOP/s)
 
-* :math:`P_\text{max}`: Theoretical peak (FLOP/s)
+* :math:`W_\text{max}`: Theoretical peak (FLOP/s)
 
 * :math:`I`: Arithmetic Intensity (FLOP/byte)
 
 * :math:`B_\text{mem}`: Memory bandwidth (byte/s) (cache, RAM, ...)
 
-For our codes, often :math:`P = I \times B_\text{mem}`
+For our codes, often :math:`W = I \times B_\text{mem}`
 
 .. notes::
 
@@ -422,7 +422,7 @@ Is it four or five operations?
 
 .. math::
 
-   \phi^{n+1}_i = \left( 1 - 2 \frac{\Delta t}{\Delta x^2} \right) \phi^n_i 
+   \phi^{n+1}_i = \left( 1 - 2 \frac{\Delta t}{\Delta x^2} \right) \phi^n_i
       + \frac{\Delta t}{\Delta x^2} \left(\phi^n_{i+1} + \phi^n_{i-1} \right)
 
 .. code::
@@ -450,7 +450,7 @@ Aligned update
 --------------
 
 =========== ===== ======   ======
-Platform    +1    +8       Theory 
+Platform    +1    +8       Theory
 =========== ===== ======   ======
 x86 (Cache) 499.9 646.9    1075.2
 x86 (RAM)   10.5  10.5     17.6
@@ -465,7 +465,7 @@ Write-Allocate Effect
 
 =========== ======== ======   ====
 Platform    Observed Theory   %
-=========== ======== ======   ====   
+=========== ======== ======   ====
 x86 (Cache) 646.9    1075.2   60.1
 x86 (RAM)   10.5     11.7     89.7
 GPU         81.1     89.9     90.2
@@ -507,9 +507,27 @@ Restarting on a new array incurs a performance penalty
    Copy is also more sensitive to peel loops than compute.  (Again, dunno why)
 
 
+.. new numbers!
+
+   L=1300
+
+   y<-x+diff(x):  1072.429
+   x<-y:          9079.040
+   S1+S2:         695.652
+
+   L=1360?
+   y<-x+diff(x):  1088.304
+   x<-y:          9145.248
+   S1+S2:         708.106
+
+   v2?
+   y<-x+diff(x):  1084.656
+   x<-y:          9001.617
+   S1+S2:         708.109
+
 .. Square Root
    ===========
-   
+
    * without -ffast-math
    * with -ffast-math
 

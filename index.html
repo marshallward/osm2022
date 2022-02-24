@@ -621,13 +621,13 @@ x[i] = y[i]</code></pre>
 <section id="theoretical-values" class="slide level2">
 <h2>Theoretical values</h2>
 <p>Why 1434 GFLOP/s?</p>
-<blockquote>
-<p>A two-loop unroll depletes registers! An additional store is required.</p>
-</blockquote>
+<ul>
+<li>A two-loop unroll exhausts registers! An additional load is required.</li>
+</ul>
 <p>Why 9216 GB/s?</p>
-<blockquote>
-<p>AVX512 copies clock at 3.0 GHz, slightly above AVX512 arithmetic at 2.8 GHz.</p>
-</blockquote>
+<ul>
+<li>AVX512 copy is clocked at 3.0 GHz, slightly above AVX512 arithmetic at 2.8 GHz.</li>
+</ul>
 </section></section>
 <section id="evaluating-model-performance" class="title-slide slide level1">
 <h1>Evaluating Model Performance</h1>

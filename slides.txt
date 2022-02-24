@@ -534,11 +534,12 @@ Theoretical values
 
 Why 1434 GFLOP/s?
 
-   A two-loop unroll depletes registers!  An additional store is required.
+* A two-loop unroll exhausts registers!  An additional load is required.
 
 Why 9216 GB/s?
 
-   AVX512 copies clock at 3.0 GHz, slightly above AVX512 arithmetic at 2.8 GHz.
+* AVX512 copy is clocked at 3.0 GHz, slightly above AVX512 arithmetic at 2.8
+  GHz.
 
 
 .. Square Root

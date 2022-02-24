@@ -399,7 +399,7 @@ Diffusion Solver
 
 .. code:: c
 
-   y[i] = a * x[i] + b * (x[i+1] +  x[i-1])
+   y[i] = a * x[i] + b * x[i+1] + b * x[i-1]
 
    x[i] = y[i]
 
@@ -430,6 +430,28 @@ Is it four or five operations?
    y[i] = a * x[i] + b * (x[i-1] + x[i+1])
 
 This is a compiler question: Do we follow parentheses?
+
+
+Loop Unrolling
+--------------
+
+Number of unrolls changes the solver:
+
+One unroll:
+
+.. code:: c
+
+   y[i] = a * x[i] + b (x[i-1] + x[i+1])
+
+Two unrolls:
+
+.. code:: c
+
+   y[i] = a * x[i] + b * x[i-1] + b * x[i+1]
+
+.. code:: c
+
+   y[i+2] = a * x[i+2] + b * x[i+1] + b * x[i+3]
 
 
 Diffusion Performance
@@ -487,13 +509,13 @@ GPU         81.1     89.9     90.2
 Staging Penalty
 ===============
 
-==========================================   =========   =========   ====
+==========================================   =========   ==========  ====
 Stage                                        Observed    Theory      %
-==========================================   =========   =========   ====
-:math:`y \leftarrow x + \alpha \nabla^2 x`   1057 GF/s   1075 GF/s   98.3
-:math:`x \leftarrow y`                       6878 GB/s   8601 GB/s   80.0
-S1 + S2                                      647 GF/s    1075 GF/s   60.1
-==========================================   =========   =========   ====
+==========================================   =========   ==========  ====
+:math:`y \leftarrow x + \alpha \nabla^2 x`   1085 GF/s   1434* GF/s  75.7
+:math:`x \leftarrow y`                       9145 GB/s   9216* GB/s  99.2
+S1 + S2                                      708 GF/s    1075 GF/s   60.1
+==========================================   =========   ==========  ====
 
 Restarting on a new array incurs a performance penalty
 
@@ -501,29 +523,23 @@ Restarting on a new array incurs a performance penalty
 
 .. notes::
 
-   One issue is that optimal copy is different from optimal compute.
-   I do not know why.
+   - AVX512 copy seems to happen at a slightly higher clock speed
+     (3.0 vs 2.8 for AVX512 arithmetic)
 
-   Copy is also more sensitive to peel loops than compute.  (Again, dunno why)
+   - The 
 
 
-.. new numbers!
+Theoretical values
+------------------
 
-   L=1300
+Why 1434 GFLOP/s?
 
-   y<-x+diff(x):  1072.429
-   x<-y:          9079.040
-   S1+S2:         695.652
+   A two-loop unroll depletes registers!  An additional store is required.
 
-   L=1360?
-   y<-x+diff(x):  1088.304
-   x<-y:          9145.248
-   S1+S2:         708.106
+Why 9216 GB/s?
 
-   v2?
-   y<-x+diff(x):  1084.656
-   x<-y:          9001.617
-   S1+S2:         708.109
+   AVX512 copies clock at 3.0 GHz, slightly above AVX512 arithmetic at 2.8 GHz.
+
 
 .. Square Root
    ===========

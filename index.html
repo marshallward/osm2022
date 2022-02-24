@@ -49,7 +49,7 @@
     </header>
 
     <footer style="font-size: 1pc; position: absolute; bottom: 2%; left: 2%;">
-      <code><p><a href="https://marshallward.org/os2022.html">https://marshallward.org/os2022.html</a></p></code>
+      <code><p><a href="https://marshallward.org/osm2022.html">https://marshallward.org/osm2022.html</a></p></code>
     </footer>
 
     <div class="slides">
@@ -271,21 +271,21 @@ void kernel(int i, double a, double b, double *x, double *y) {
 <section id="roofline-modeling" class="title-slide slide level1">
 <h1>Roofline Modeling</h1>
 <p><img data-src="img/cascade_lake_roofline.svg" style="width:50.0%" alt="image" /></p>
-<p><span class="math inline">\(P = I \times B_\text{mem}\)</span></p>
+<p><span class="math inline">\(W_\text{FLOPS} = I \times B_\text{mem}\)</span></p>
 <aside class="notes">
 <p>Adjacent lines have the same AI</p>
 </aside>
 </section>
 <section id="the-roofline-model" class="slide level2">
 <h2>The Roofline Model</h2>
-<p><span class="math display">\[P = \text{min}(P_\text{max}, I \times B_\text{mem})\]</span></p>
+<p><span class="math display">\[W = \text{min}(W_\text{max}, I \times B_\text{mem})\]</span></p>
 <ul>
-<li><span class="math inline">\(P\)</span>: Performance (FLOP/s)</li>
-<li><span class="math inline">\(P_\text{max}\)</span>: Theoretical peak (FLOP/s)</li>
+<li><span class="math inline">\(W\)</span>: Performance (FLOP/s)</li>
+<li><span class="math inline">\(W_\text{max}\)</span>: Theoretical peak (FLOP/s)</li>
 <li><span class="math inline">\(I\)</span>: Arithmetic Intensity (FLOP/byte)</li>
 <li><span class="math inline">\(B_\text{mem}\)</span>: Memory bandwidth (byte/s) (cache, RAM, ...)</li>
 </ul>
-<p>For our codes, often <span class="math inline">\(P = I \times B_\text{mem}\)</span></p>
+<p>For our codes, often <span class="math inline">\(W = I \times B_\text{mem}\)</span></p>
 <aside class="notes">
 <p>Roofline is a useful model for estimating how well we ought to do</p>
 <p>However, it can be hard to apply in practice due to a few issues</p>
@@ -439,7 +439,7 @@ void kernel(int i, double a, double b, double *x, double *y) {
 <h1>Diffusion Solver</h1>
 <p><span class="math display">\[\phi^{n+1}_i = \phi^n_i + \frac{\Delta t}{\Delta x^2}
    \left(\phi^n_{i+1} - 2 \phi^n_i + \phi^n_{i-1} \right)\]</span></p>
-<pre class="c"><code>y[i] = a * x[i] + b * (x[i+1] +  x[i-1])
+<pre class="c"><code>y[i] = a * x[i] + b * x[i+1] + b * x[i-1]
 
 x[i] = y[i]</code></pre>
 <p>4 FLOPs (amortized) per 4×8 bytes: <span class="math inline">\(\frac{1}{8}\)</span></p>
@@ -450,10 +450,19 @@ x[i] = y[i]</code></pre>
 <p><span class="math display">\[\phi^{n+1}_i = \phi^n_i + \frac{\Delta t}{\Delta x^2}
    \left(\phi^n_{i+1} - 2 \phi^n_i + \phi^n_{i-1} \right)\]</span></p>
 <pre class=""><code>y[i] = x[i] + a * (x[i-1] - 2 * x[i] + x[i+1])</code></pre>
-<p><span class="math display">\[\phi^{n+1}_i = \left( 1 - 2 \frac{\Delta t}{\Delta x^2} \right) \phi^n_i 
+<p><span class="math display">\[\phi^{n+1}_i = \left( 1 - 2 \frac{\Delta t}{\Delta x^2} \right) \phi^n_i
    + \frac{\Delta t}{\Delta x^2} \left(\phi^n_{i+1} + \phi^n_{i-1} \right)\]</span></p>
 <pre class=""><code>y[i] = a * x[i] + b * (x[i-1] + x[i+1])</code></pre>
 <p>This is a compiler question: Do we follow parentheses?</p>
+</section>
+<section id="loop-unrolling" class="slide level2">
+<h2>Loop Unrolling</h2>
+<p>Number of unrolls changes the solver:</p>
+<p>One unroll:</p>
+<pre class="c"><code>y[i] = a * x[i] + b (x[i-1] + x[i+1])</code></pre>
+<p>Two unrolls:</p>
+<pre class="c"><code>y[i] = a * x[i] + b * x[i-1] + b * x[i+1]</code></pre>
+<pre class="c"><code>y[i+2] = a * x[i+2] + b * x[i+1] + b * x[i+3]</code></pre>
 </section></section>
 <section>
 <section id="diffusion-performance" class="title-slide slide level1">
@@ -567,6 +576,7 @@ x[i] = y[i]</code></pre>
 </aside>
 </section>
 
+<section>
 <section id="staging-penalty" class="title-slide slide level1">
 <h1>Staging Penalty</h1>
 <table>
@@ -581,19 +591,19 @@ x[i] = y[i]</code></pre>
 <tbody>
 <tr class="odd">
 <td><span class="math inline">\(y \leftarrow x + \alpha \nabla^2 x\)</span></td>
-<td>1057 GF/s</td>
-<td>1075 GF/s</td>
-<td>98.3</td>
+<td>1085 GF/s</td>
+<td>1434* GF/s</td>
+<td>75.7</td>
 </tr>
 <tr class="even">
 <td><span class="math inline">\(x \leftarrow y\)</span></td>
-<td>6878 GB/s</td>
-<td>8601 GB/s</td>
-<td>80.0</td>
+<td>9145 GB/s</td>
+<td>9216* GB/s</td>
+<td>99.2</td>
 </tr>
 <tr class="odd">
 <td>S1 + S2</td>
-<td>647 GF/s</td>
+<td>708 GF/s</td>
 <td>1075 GF/s</td>
 <td>60.1</td>
 </tr>
@@ -602,11 +612,23 @@ x[i] = y[i]</code></pre>
 <p>Restarting on a new array incurs a performance penalty</p>
 <p><strong>NOTE</strong>: L1⇋RAM transfer obscures this cost!</p>
 <aside class="notes">
-<p>One issue is that optimal copy is different from optimal compute. I do not know why.</p>
-<p>Copy is also more sensitive to peel loops than compute. (Again, dunno why)</p>
+<ul>
+<li>AVX512 copy seems to happen at a slightly higher clock speed (3.0 vs 2.8 for AVX512 arithmetic)</li>
+<li>The</li>
+</ul>
 </aside>
 </section>
-
+<section id="theoretical-values" class="slide level2">
+<h2>Theoretical values</h2>
+<p>Why 1434 GFLOP/s?</p>
+<blockquote>
+<p>A two-loop unroll depletes registers! An additional store is required.</p>
+</blockquote>
+<p>Why 9216 GB/s?</p>
+<blockquote>
+<p>AVX512 copies clock at 3.0 GHz, slightly above AVX512 arithmetic at 2.8 GHz.</p>
+</blockquote>
+</section></section>
 <section id="evaluating-model-performance" class="title-slide slide level1">
 <h1>Evaluating Model Performance</h1>
 <p><img data-src="img/benchmark_topo.svg" class="float float" style="width:35.0%" alt="image" /></p>

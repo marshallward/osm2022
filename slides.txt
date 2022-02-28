@@ -399,7 +399,7 @@ Diffusion Solver
 
 .. code:: c
 
-   y[i] = a * x[i] + b * x[i+1] + b * x[i-1]
+   y[i] = a * x[i] + b * (x[i+1] + x[i-1])
 
    x[i] = y[i]
 
@@ -460,7 +460,7 @@ Diffusion Performance
 =========== ======== ======   ====
 Platform    Observed Theory   %
 =========== ======== ======   ====
-x86 (Cache) 646.9    1075.2   60.1
+x86 (Cache) 690.7    1075.2   64.2
 x86 (RAM)   10.5     17.6     59.7
 GPU         81.1     112.3    72.2
 =========== ======== ======   ====
@@ -474,7 +474,7 @@ Aligned update
 =========== ===== ======   ======
 Platform    +1    +8       Theory
 =========== ===== ======   ======
-x86 (Cache) 499.9 646.9    1075.2
+x86 (Cache) 499.9 690.7    1075.2
 x86 (RAM)   10.5  10.5     17.6
 GPU         81.1  81.1     112.3
 =========== ===== ======   ======
@@ -488,7 +488,7 @@ Write-Allocate Effect
 =========== ======== ======   ====
 Platform    Observed Theory   %
 =========== ======== ======   ====
-x86 (Cache) 646.9    1075.2   60.1
+x86 (Cache) 690.7    1075.2   64.2
 x86 (RAM)   10.5     11.7     89.7
 GPU         81.1     89.9     90.2
 =========== ======== ======   ====
@@ -514,7 +514,7 @@ Stage                                        Observed    Theory      %
 ==========================================   =========   ==========  ====
 :math:`y \leftarrow x + \alpha \nabla^2 x`   1085 GF/s   1434* GF/s  75.7
 :math:`x \leftarrow y`                       9145 GB/s   9216* GB/s  99.2
-S1 + S2                                      708 GF/s    1075 GF/s   60.1
+S1 + S2                                      691 GF/s    1075 GF/s   64.2
 ==========================================   =========   ==========  ====
 
 Restarting on a new array incurs a performance penalty
@@ -526,7 +526,13 @@ Restarting on a new array incurs a performance penalty
    - AVX512 copy seems to happen at a slightly higher clock speed
      (3.0 vs 2.8 for AVX512 arithmetic)
 
-   - The 
+   - diff update does two things:
+
+     1. y <- a x + b x(-1) + b x(+1) (still amortized to 4 FLOPs)
+     2. Runs out of registers!  One extra move is required
+        (How one if they are in pairs?  Amortized over a two-loop unroll!)
+     3. I = 4 / (3*8) = 1/6
+        W = 8601/6 = 1434
 
 
 Theoretical values
@@ -601,7 +607,7 @@ MOM6 Roofline
 
 .. MOM6: 16x Domain
    ----------------
-   
+
    .. image:: img/mom6_roofline_all_4x.svg
       :width: 80%
 
@@ -630,7 +636,7 @@ Highest points correspond to recent optimization efforts
 
 Summary
 =======
- 
+
 * Most ocean model solvers are bandwidth-limited
 
 * Arithmetic intensity (AI) is a predictor of performance

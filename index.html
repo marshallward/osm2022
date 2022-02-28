@@ -105,7 +105,7 @@
 <td>2145.3</td>
 </tr>
 <tr class="even">
-<td>NVidia (Volta)</td>
+<td>Nvidia (Volta)</td>
 <td>7065.6</td>
 <td>7007.3</td>
 </tr>
@@ -439,7 +439,7 @@ void kernel(int i, double a, double b, double *x, double *y) {
 <h1>Diffusion Solver</h1>
 <p><span class="math display">\[\phi^{n+1}_i = \phi^n_i + \frac{\Delta t}{\Delta x^2}
    \left(\phi^n_{i+1} - 2 \phi^n_i + \phi^n_{i-1} \right)\]</span></p>
-<pre class="c"><code>y[i] = a * x[i] + b * x[i+1] + b * x[i-1]
+<pre class="c"><code>y[i] = a * x[i] + b * (x[i+1] + x[i-1])
 
 x[i] = y[i]</code></pre>
 <p>4 FLOPs (amortized) per 4×8 bytes: <span class="math inline">\(\frac{1}{8}\)</span></p>
@@ -479,9 +479,9 @@ x[i] = y[i]</code></pre>
 <tbody>
 <tr class="odd">
 <td>x86 (Cache)</td>
-<td>646.9</td>
+<td>690.7</td>
 <td>1075.2</td>
-<td>60.1</td>
+<td>64.2</td>
 </tr>
 <tr class="even">
 <td>x86 (RAM)</td>
@@ -514,7 +514,7 @@ x[i] = y[i]</code></pre>
 <tr class="odd">
 <td>x86 (Cache)</td>
 <td>499.9</td>
-<td>646.9</td>
+<td>690.7</td>
 <td>1075.2</td>
 </tr>
 <tr class="even">
@@ -547,9 +547,9 @@ x[i] = y[i]</code></pre>
 <tbody>
 <tr class="odd">
 <td>x86 (Cache)</td>
-<td>646.9</td>
+<td>690.7</td>
 <td>1075.2</td>
-<td>60.1</td>
+<td>64.2</td>
 </tr>
 <tr class="even">
 <td>x86 (RAM)</td>
@@ -603,9 +603,9 @@ x[i] = y[i]</code></pre>
 </tr>
 <tr class="odd">
 <td>S1 + S2</td>
-<td>708 GF/s</td>
+<td>691 GF/s</td>
 <td>1075 GF/s</td>
-<td>60.1</td>
+<td>64.2</td>
 </tr>
 </tbody>
 </table>
@@ -614,7 +614,12 @@ x[i] = y[i]</code></pre>
 <aside class="notes">
 <ul>
 <li>AVX512 copy seems to happen at a slightly higher clock speed (3.0 vs 2.8 for AVX512 arithmetic)</li>
-<li>The</li>
+<li>diff update does two things:
+<ol type="1">
+<li>y &lt;- a x + b x(-1) + b x(+1) (still amortized to 4 FLOPs)</li>
+<li>Runs out of registers! One extra move is required (How one if they are in pairs? Amortized over a two-loop unroll!)</li>
+<li>I = 4 / (3*8) = 1/6 W = 8601/6 = 1434</li>
+</ol></li>
 </ul>
 </aside>
 </section>

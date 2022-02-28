@@ -51,12 +51,12 @@ Peak Performance
    W_\text{FLOPS} = W_\text{core} \times N_\text{cores} \times f_\text{cycles}
 
 
-============   =========== ========
-Platform       Theoretical Observed
-============   =========== ========
-Cascade Lake   2150.4      2145.3
-Volta (GPU)    7065.6      7007.3
-============   =========== ========
+==================   ============= ========
+Platform             Theory (GF/s) Observed
+==================   ============= ========
+x86 (Cascade Lake)   2150.4        2145.3
+Nvidia (Volta)       7065.6        7007.3
+==================   ============= ========
 
 But are these numbers achievable?
 

@@ -191,7 +191,7 @@ Hydrostatic balance eliminates elliptic step:
 
    \frac{\partial \rho}{\partial t} = ...
 
-Most barotropic solvers are also hyperbolic.
+Many barotropic solvers are also hyperbolic.
 
 
 

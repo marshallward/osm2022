@@ -35,7 +35,7 @@ index.html: slides.txt gfdl.revealjs reveal.js/css/theme/gfdl.css $(DOTFIGURES) 
 	sed -i 's/<li class="fragment"/<li/g' $@
 	sed -i 's/<p>NOAA-GFDL<\/p>/NOAA-GFDL/g' $@
 
-mini.html: mini.txt gfdl.revealjs reveal.js/css/theme/gfdl.css $(DOTFIGURES) $(SOURCE)
+mini.html: five.txt gfdl.revealjs reveal.js/css/theme/gfdl.css $(DOTFIGURES) $(SOURCE)
 	pandoc ${FLAGS} $< -o $@
 	sed -i 's/^" data-start-line=/"><code data-start-line=/g' $@
 	sed -i 's/^"><code>/">/g' $@

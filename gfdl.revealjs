@@ -106,6 +106,9 @@ $endfor$
 $if(date)$
   <p class="date" style="text-align: right;">$date$</p>
 $endif$
+$if(topic)$
+  <p class="topic" style="">$topic$</p>
+$endif$
   <!-- Currently cannot add notes to a title slide, so have to do manually-->
   <aside class="notes">
     $preface$

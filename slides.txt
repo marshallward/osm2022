@@ -546,13 +546,6 @@ Why 9216 GB/s?
   GHz.
 
 
-.. Square Root
-   ===========
-
-   * without -ffast-math
-   * with -ffast-math
-
-
 Evaluating Model Performance
 ============================
 

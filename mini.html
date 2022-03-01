@@ -67,22 +67,19 @@
   <p class="date" style="text-align: right;">March 1, 2022</p>
   <!-- Currently cannot add notes to a title slide, so have to do manually-->
   <aside class="notes">
-    <p>"Performance" is overall a generic term which different meanings.</p>
-    <p>Numerical analysts often focus on accuracy and convergence rates of errors, with less discussion of the raw computational cost.</p>
+    <p>Going to discuss Computational performance of models</p>
     <ul>
-    <li>If the cost of each iteration is enormous, then convergence rate is a poor predictor of runtime.</li>
+    <li>The rate we produce work</li>
+    <li>Not necessarily <em>useful</em> work!</li>
     </ul>
-    <p>Model usage is often measured in throughput, such as "SYPD" or simulated years per day.</p>
+    <p>Relative statements of performance are common</p>
     <ul>
-    <li>This is a perfect metric, but perhaps too reductive. Comparison across models becomes impossible, and leaves very little sense of how well we could have done, or ought to do.</li>
+    <li>Model "scales well"</li>
+    <li>Model X is faster than...</li>
+    <li>Model y is faster than...</li>
     </ul>
-    <p>Computational performance tries to decompose the problem into measurable units of calculation, with FLOPs being the most well known.</p>
-    <ul>
-    <li>It is also flawed (some reasons we'll address) but is nonetheless a useful "unit of work" for calculation, and maps well onto the computer's own unit of time (clock frequency), so it has the <em>potential</em> to make predictive statements of run time.</li>
-    </ul>
-    <p>No single method can alone characterize performance.</p>
-    <p>We generally do a good job quantifying the first two, but reporting the absolute performance of a model is uncommon.</p>
-    <p>I am hoping that this talk will help to start providing some basis for this third point, and to help us start making confident estimates of how we're doing, and how we ought to do. Introductory comments, written to slide notes</p>
+    <p>Absolute metrics of performance are uncommon (perhaps even rare)</p>
+    <p>So this talk is perhaps a first attempt to start this conversation</p>
   </aside>
 </section>
 
@@ -91,8 +88,22 @@
 <h1>Peak Performance</h1>
 <p><img data-src="img/dgemm_vs_daxpy.svg" alt="image" /></p>
 <aside class="notes">
+<p>Hardware has a peak performance, but only achievable by certain calculations</p>
+<p>Orange is Nvidia Volta GPU</p>
+<p>Blue is x86 Intel Cascade Lake CPU</p>
+<p>Observations:</p>
 <ul>
-<li>x: length of array, or sqrt(dim) of square matrix</li>
+<li>GPU is ~3.5x faster at its best</li>
+<li>Problems need to be large to reach peak</li>
+</ul>
+<p>Array computation is a different story</p>
+<ul>
+<li>x86 has a somewhat complex structure, smaller arrays are faster</li>
+<li>GPU is abysmal for small arrays, but eventually exceeds CPU</li>
+</ul>
+<p>Other notes:</p>
+<ul>
+<li>x: length of array, or matrix dim^2</li>
 <li>Nvidia DGEMM and DAXPY from cuBLAS</li>
 <li>Intel DGEMM results from MKL</li>
 <li>Intel DAXPY results from Optiflop</li>
@@ -204,6 +215,19 @@
 </tbody>
 </table>
 <p>Array computation is proportional to bandwidth</p>
+<aside class="notes">
+<p>Matrix vs array trend can be explained by <em>arithmetic intensity</em></p>
+<p>As matrices get larger, more work per number read</p>
+<ul>
+<li>converge to computational peak</li>
+</ul>
+<p>No such trend as arrays grow</p>
+<p>Not all ocean models depend on array updates</p>
+<ul>
+<li>including in this session!</li>
+</ul>
+<p>But it does describe a great many components of a great many ocean models</p>
+</aside>
 </section>
 <section id="compute-bound" class="slide level2">
 <h2>Compute Bound</h2>
@@ -241,6 +265,17 @@
 <h1>Performance Bounds</h1>
 <p><img data-src="img/cascade_lake_perf.svg" alt="image" /></p>
 <p><span class="math inline">\(W_\text{FLOPS} = I \times B_\text{mem}\)</span></p>
+<aside class="notes">
+<p>Several different computations shown on the left</p>
+<p>Mostly x86, but one GPU for comparison</p>
+<p>Overall similar shape, but the peak and asymptotic values depend on the nature of the expression.</p>
+<p>Projecting onto the roofline diagram on the right</p>
+<ul>
+<li>FLOP rate as a function of AI</li>
+<li>Bounds correspond to machine bandwidths, denoted by diagonal contours</li>
+<li>below by RAM speed, above by CPU cache</li>
+</ul>
+</aside>
 </section>
 <section id="how-these-are-produced" class="slide level2">
 <h2>How these are produced</h2>
@@ -292,10 +327,9 @@ void kernel(int i, double a, double b, double *x, double *y) {
 <li>Variable Clock Frequency</li>
 <li>Depletion of registers</li>
 </ul>
-</section></section>
-<section>
-<section id="peak-bandwidth" class="title-slide slide level1">
-<h1>Peak Bandwidth</h1>
+</section>
+<section id="peak-bandwidth" class="slide level2">
+<h2>Peak Bandwidth</h2>
 <p><img data-src="img/skylake_mem_block_diagram.svg" class="float float" style="width:45.0%" alt="image" /></p>
 <table>
 <thead>
@@ -410,6 +444,20 @@ void kernel(int i, double a, double b, double *x, double *y) {
 </tbody>
 </table>
 <p>RAM efficiencies of 80-90% are common</p>
+<aside class="notes">
+<p>Simplest example we can imagine</p>
+<p>And we've already shown it</p>
+<p>Parsing quickly for time...</p>
+<ul>
+<li>Two flops</li>
+<li>Two loads, one store x 8 bytes each</li>
+</ul>
+<p>Multiply bandwidth by 1/12 and we get the ideal FLOP rate</p>
+<p>Note reduced inefficiency at the RAM level</p>
+<ul>
+<li>accounts for dip in our previous figure</li>
+</ul>
+</aside>
 </section>
 <section id="euler-step-1" class="slide level2">
 <h2>Euler Step</h2>
@@ -475,12 +523,34 @@ void kernel(int i, double a, double b, double *x, double *y) {
 <pre class="c"><code>y[i] = a * x[i] + b * x[i+1] + b * x[i-1]
 
 x[i] = y[i]</code></pre>
-<p>4 FLOPs (amortized) per 4×8 bytes: <span class="math inline">\(\frac{1}{8}\)</span></p>
-<p>"Write-allocate": RAM-bound does extra read: <span class="math inline">\(\frac{1}{10}\)</span></p>
+<p>4 FLOPs (amortized) per 4×8 bytes: <span class="math inline">\(I = \frac{1}{8}\)</span></p>
+<p>"Write-allocate" (+1 RAM read): <span class="math inline">\(I_\text{RAM} = \frac{1}{10}\)</span></p>
 <aside class="notes">
-<p><a href="https://blogs.fau.de/hager/archives/8263">https://blogs.fau.de/hager/archives/8263</a></p>
-<p><a href="https://www.cs.virginia.edu/stream/ref.html#counting">https://www.cs.virginia.edu/stream/ref.html#counting</a></p>
-<p>No idea why GPU is a half-grid, but this is a hardware-implementation issue</p>
+<p>As a more complicated model, consider a simple discretization of the diffusion equation.</p>
+<p>Interesting for several reasons:</p>
+<ul>
+<li>Two stage operation</li>
+<li>Nontrivial stencil</li>
+<li>Potential compiler manipulation</li>
+</ul>
+<p>Naively:</p>
+<ul>
+<li>4 FLOPs</li>
+<li>4 loads/stores:</li>
+<li>4 / (4*8) = 1/8</li>
+</ul>
+<p>Write-allocate effect</p>
+<ul>
+<li>Unlike euler, the RHS does not appear on the LHS!</li>
+<li>RAM &lt;-&gt; Cache writes implicitly do a read</li>
+<li>4 / (5*8) = 1/10</li>
+<li>Video discusses this in some more detail</li>
+</ul>
+<p>Notes on write-allocate:</p>
+<ul>
+<li><a href="https://blogs.fau.de/hager/archives/8263">https://blogs.fau.de/hager/archives/8263</a></li>
+<li><a href="https://www.cs.virginia.edu/stream/ref.html#counting">https://www.cs.virginia.edu/stream/ref.html#counting</a></li>
+</ul>
 </aside>
 </section>
 <section id="how-many-flops" class="slide level2">
@@ -569,33 +639,39 @@ x[i] = y[i]</code></pre>
 <thead>
 <tr class="header">
 <th>Platform</th>
+<th>Theory (GF/s)</th>
 <th>Observed</th>
-<th>Theory</th>
 <th>%</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
 <td>x86 (Cache)</td>
-<td>690.7</td>
 <td>1075.2</td>
+<td>690.7</td>
 <td>64.2</td>
 </tr>
 <tr class="even">
 <td>x86 (RAM)</td>
-<td>10.8</td>
 <td>14.1</td>
+<td>10.8</td>
 <td>76.7</td>
 </tr>
 <tr class="odd">
 <td>GPU</td>
-<td>81.1</td>
 <td>89.9</td>
+<td>81.1</td>
 <td>90.2</td>
 </tr>
 </tbody>
 </table>
-<p>Multistage loops incur a penalty</p>
+<p>Multistage loops incur a penalty in cache</p>
+<aside class="notes">
+<p>Despite all that, there is still a discrepancy, at least at cache</p>
+<p>I cannot stop to explain in more detail, but...</p>
+<p>I attribute this to the <em>staging</em>, or a "spinup" as the arrays are flushed and replaced in cache</p>
+<p>RAM bounds look good, however (IMO!)</p>
+</aside>
 </section>
 <section id="staging-penalty" class="slide level2">
 <h2>Staging Penalty</h2>
@@ -654,8 +730,8 @@ x[i] = y[i]</code></pre>
 <li>AVX512 copy is clocked at 3.0 GHz, slightly above AVX512 arithmetic at 2.8 GHz.</li>
 </ul>
 </section></section>
-<section id="evaluating-model-performance" class="title-slide slide level1">
-<h1>Evaluating Model Performance</h1>
+<section id="mom6-benchmark" class="title-slide slide level1">
+<h1>MOM6 Benchmark</h1>
 <p><img data-src="img/benchmark_topo.svg" class="float float" style="width:35.0%" alt="image" /></p>
 <ul>
 <li>192 × 128 grid, 75 level
@@ -672,30 +748,59 @@ x[i] = y[i]</code></pre>
 </ul></li>
 </ul>
 <aside class="notes">
-<ul>
-<li><p>So how is MOM6 vectorization?</p>
-<ul>
-<li>This is a compile-time feature, so ought not depend on scaling</li>
-</ul></li>
-<li><p>Using a "benchmark" single-core test</p>
-<ul>
-<li>Reasonable set of realistic components</li>
-<li>A non-trivial land/sea distribution</li>
-</ul></li>
-<li><p>Not necessarily the most physically signficant factors. Just the ones which had a significant impact on performance.</p></li>
-</ul>
+<p>Ideal tests are nice, but let us try to apply them to a more realistic model</p>
 </aside>
 </section>
 
 <section id="mom6-performance" class="title-slide slide level1">
 <h1>MOM6 Performance</h1>
 <p><img data-src="img/mom6_subrt_flops.svg" alt="image" /></p>
+<aside class="notes">
+<p>Major subroutines are shown here:</p>
+<ul>
+<li>Total time in function</li>
+<li>Total FLOPs</li>
+<li>And the "work" (FLOP rate)</li>
+</ul>
+<p>Important to identify the "fast" and "slow" ones, but..</p>
+<p>It does not necessarily capture where to find the most room for improvement</p>
+</aside>
 </section>
 
 <section>
 <section id="mom6-roofline" class="title-slide slide level1">
 <h1>MOM6 Roofline</h1>
 <p><img data-src="img/mom6_roofline.svg" style="width:80.0%" alt="image" /></p>
+<aside class="notes">
+<p>Throwing points on a roofline diagram offers potentially greater context</p>
+<p>Big caveat:</p>
+<ul>
+<li>This is work in progress</li>
+<li>FLOPs are reasonably confident, bandwidths are <em>not</em>!</li>
+<li>But I have a method for estimation that matches idealized tests</li>
+</ul>
+<p>(Also: No GPU involved, only added here for context)</p>
+<p>Observations:</p>
+<ul>
+<li><p>All functions follow the general "arithmetic intensity trend":</p>
+<ul>
+<li>higher AI means higher FLOP rate</li>
+</ul></li>
+<li><p>If these are to be believed, then all functions are doing reasonably well</p>
+<ul>
+<li>None languishing in a RAM-bound abyss, but are cache-bound</li>
+</ul></li>
+<li><p>The fastest functions have high AI but are not necessarily most efficient, and are rather "below the curve"</p></li>
+<li><p>Two points in the top left are notable (horizontal viscosity, coriolis force) since they were recent targets of major vectorization speedups</p></li>
+<li><p>Other notably slow functions (btstep, rk2) are both low AI and below the curve</p></li>
+<li><p>Finally, many functions are arguably "faster" than would be possible on a GPU.</p></li>
+</ul>
+<p>Take these conclusions with some skepticism, this needs more analysis. But I do believe that such an analysis ought to be possible and available for developers.</p>
+</aside>
+</section>
+<section id="mom6-16x-domain" class="slide level2">
+<h2>MOM6: 16x Domain</h2>
+<p><img data-src="img/mom6_roofline_all_4x.svg" style="width:80.0%" alt="image" /></p>
 </section>
 <section id="mom6-all-subroutines" class="slide level2">
 <h2>MOM6: All subroutines</h2>
@@ -727,8 +832,23 @@ x[i] = y[i]</code></pre>
 <p>Highest points correspond to recent optimization efforts</p>
 <p>(NOTE: Timings are from a different config)</p>
 </section></section>
+<section>
 <section id="summary" class="title-slide slide level1">
 <h1>Summary</h1>
+<ul>
+<li>Arithmetic intensity is a strong indicator of bandwidth-limited performance</li>
+<li>CPUs benefit from modest arrays (~1M)</li>
+<li>GPUs favor very large arrays and implicit solvers</li>
+<li>Roofline analysis enables performance prediction and targeted optimzation</li>
+</ul>
+<p>Further Work</p>
+<ul>
+<li>Build up a "calculus" of <span class="math inline">\(W_\text{FLOP}\)</span> estimation</li>
+<li>Develop confidence in estimating model bandwidth</li>
+</ul>
+</section>
+<section id="old-summary" class="slide level2">
+<h2>Old summary</h2>
 <ul>
 <li>Most ocean model solvers are bandwidth-limited</li>
 <li>Arithmetic intensity (AI) is a predictor of performance</li>
@@ -736,7 +856,7 @@ x[i] = y[i]</code></pre>
 <li>GPUs <em>strongly favor</em> large arrays, and implicit (matrix) solvers</li>
 <li>AI can be used to strategize optimization</li>
 </ul>
-</section>
+</section></section>
     </div>
   </div>
 

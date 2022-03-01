@@ -9,38 +9,23 @@ Estimating and measuring peak performance of numerical ocean model algorithms
 :date: March 1, 2022
 :url: https://marshallward.org/osm2022.html
 :preface:
-   "Performance" is overall a generic term which different meanings.
+   Going to discuss Computational performance of models
 
-   Numerical analysts often focus on accuracy and convergence rates of errors,
-   with less discussion of the raw computational cost.
+   - The rate we produce work
 
-   - If the cost of each iteration is enormous, then convergence rate is a
-     poor predictor of runtime.
+   - Not necessarily *useful* work!
 
-   Model usage is often measured in throughput, such as "SYPD" or simulated
-   years per day.
+   Relative statements of performance are common
 
-   - This is a perfect metric, but perhaps too reductive.  Comparison across
-     models becomes impossible, and leaves very little sense of how well we
-     could have done, or ought to do.
+   - Model "scales well"
 
-   Computational performance tries to decompose the problem into measurable
-   units of calculation, with FLOPs being the most well known.
+   - Model X is faster than...
 
-   - It is also flawed (some reasons we'll address) but is nonetheless a
-     useful "unit of work" for calculation, and maps well onto the computer's
-     own unit of time (clock frequency), so it has the *potential* to make
-     predictive statements of run time.
+   - Model y is faster than...
 
-   No single method can alone characterize performance.
+   Absolute metrics of performance are uncommon (perhaps even rare)
 
-   We generally do a good job quantifying the first two, but reporting the
-   absolute performance of a model is uncommon.
-
-   I am hoping that this talk will help to start providing some basis for this
-   third point, and to help us start making confident estimates of how we're
-   doing, and how we ought to do.
-   Introductory comments, written to slide notes
+   So this talk is perhaps a first attempt to start this conversation
 
 
 Peak Performance
@@ -50,7 +35,27 @@ Peak Performance
 
 .. notes::
 
-   * x: length of array, or sqrt(dim) of square matrix
+   Hardware has a peak performance, but only achievable by certain calculations
+
+   Orange is Nvidia Volta GPU
+
+   Blue is x86 Intel Cascade Lake CPU
+
+   Observations:
+
+   - GPU is ~3.5x faster at its best
+
+   - Problems need to be large to reach peak
+
+   Array computation is a different story
+
+   - x86 has a somewhat complex structure, smaller arrays are faster
+
+   - GPU is abysmal for small arrays, but eventually exceeds CPU
+
+   Other notes:
+
+   * x: length of array, or matrix dim^2
 
    * Nvidia DGEMM and DAXPY from cuBLAS
    * Intel DGEMM results from MKL
@@ -138,6 +143,22 @@ Arithmetic Intensity
 
 Array computation is proportional to bandwidth
 
+.. notes::
+
+   Matrix vs array trend can be explained by *arithmetic intensity*
+
+   As matrices get larger, more work per number read
+
+   - converge to computational peak
+
+   No such trend as arrays grow
+
+   Not all ocean models depend on array updates
+
+   - including in this session!
+
+   But it does describe a great many components of a great many ocean models
+
 
 Compute Bound
 -------------
@@ -210,6 +231,23 @@ Performance Bounds
 .. image:: img/cascade_lake_perf.svg
 
 :math:`W_\text{FLOPS} = I \times B_\text{mem}`
+
+.. notes::
+
+   Several different computations shown on the left
+
+   Mostly x86, but one GPU for comparison
+
+   Overall similar shape, but the peak and asymptotic values depend on the
+   nature of the expression.
+
+   Projecting onto the roofline diagram on the right
+
+   - FLOP rate as a function of AI
+
+   - Bounds correspond to machine bandwidths, denoted by diagonal contours
+
+   - below by RAM speed, above by CPU cache
 
 
 How these are produced
@@ -285,7 +323,7 @@ Unaccounted Factors
 
 
 Peak Bandwidth
-==============
+--------------
 
 .. image:: img/skylake_mem_block_diagram.svg
    :class: float
@@ -363,6 +401,23 @@ GPU         74.8           67.3     90.0
 
 RAM efficiencies of 80-90% are common
 
+.. notes::
+
+   Simplest example we can imagine
+
+   And we've already shown it
+
+   Parsing quickly for time...
+
+   - Two flops
+   - Two loads, one store x 8 bytes each
+
+   Multiply bandwidth by 1/12 and we get the ideal FLOP rate
+
+   Note reduced inefficiency at the RAM level
+
+   - accounts for dip in our previous figure
+
 
 Euler Step
 ----------
@@ -422,17 +477,46 @@ Diffusion Solver
 
    x[i] = y[i]
 
-4 FLOPs (amortized) per 4×8 bytes: :math:`\frac{1}{8}`
+4 FLOPs (amortized) per 4×8 bytes: :math:`I = \frac{1}{8}`
 
-"Write-allocate": RAM-bound does extra read: :math:`\frac{1}{10}`
+"Write-allocate" (+1 RAM read): :math:`I_\text{RAM} = \frac{1}{10}`
 
 .. notes::
 
-   https://blogs.fau.de/hager/archives/8263
+   As a more complicated model, consider a simple discretization of the
+   diffusion equation.
 
-   https://www.cs.virginia.edu/stream/ref.html#counting
+   Interesting for several reasons:
 
-   No idea why GPU is a half-grid, but this is a hardware-implementation issue
+   - Two stage operation
+
+   - Nontrivial stencil
+
+   - Potential compiler manipulation
+
+   Naively:
+
+   - 4 FLOPs
+
+   - 4 loads/stores: 
+
+   - 4 / (4*8) = 1/8
+
+   Write-allocate effect
+
+   - Unlike euler, the RHS does not appear on the LHS!
+
+   - RAM <-> Cache writes implicitly do a read
+
+   - 4 / (5*8) = 1/10
+
+   - Video discusses this in some more detail
+
+   Notes on write-allocate:
+
+   - https://blogs.fau.de/hager/archives/8263
+
+   - https://www.cs.virginia.edu/stream/ref.html#counting
 
 
 How many FLOPS?
@@ -492,15 +576,26 @@ Single-displacement has a performance penalty
 Diffusion Performance
 =====================
 
-=========== ======== ======   ====
-Platform    Observed Theory   %
-=========== ======== ======   ====
-x86 (Cache) 690.7    1075.2   64.2
-x86 (RAM)   10.8     14.1     76.7
-GPU         81.1     89.9     90.2
-=========== ======== ======   ====
+=========== =============  ======== ====
+Platform    Theory (GF/s)  Observed %
+=========== =============  ======== ====
+x86 (Cache) 1075.2         690.7    64.2
+x86 (RAM)   14.1           10.8     76.7
+GPU         89.9           81.1     90.2
+=========== =============  ======== ====
 
-Multistage loops incur a penalty
+Multistage loops incur a penalty in cache
+
+.. notes::
+
+   Despite all that, there is still a discrepancy, at least at cache
+
+   I cannot stop to explain in more detail, but...
+
+   I attribute this to the *staging*, or a "spinup" as the arrays are flushed
+   and replaced in cache
+
+   RAM bounds look good, however (IMO!)
 
 
 Staging Penalty
@@ -552,8 +647,8 @@ Why 9216 GB/s?
    * with -ffast-math
 
 
-Evaluating Model Performance
-============================
+MOM6 Benchmark
+==============
 
 .. image:: img/benchmark_topo.svg
    :class: float
@@ -576,23 +671,28 @@ Evaluating Model Performance
 
 .. notes::
 
-   * So how is MOM6 vectorization?
-
-      * This is a compile-time feature, so ought not depend on scaling
-
-   * Using a "benchmark" single-core test
-
-      * Reasonable set of realistic components
-      * A non-trivial land/sea distribution
-
-   * Not necessarily the most physically signficant factors.  Just the ones
-     which had a significant impact on performance.
+   Ideal tests are nice, but let us try to apply them to a more realistic model
 
 
 MOM6 Performance
-=================
+================
 
 .. image:: img/mom6_subrt_flops.svg
+
+.. notes::
+
+   Major subroutines are shown here:
+
+   - Total time in function
+
+   - Total FLOPs
+
+   - And the "work" (FLOP rate)
+
+   Important to identify the "fast" and "slow" ones, but..
+
+   It does not necessarily capture where to find the most room for improvement
+
 
 
 MOM6 Roofline
@@ -602,11 +702,52 @@ MOM6 Roofline
    :width: 80%
 
 
-.. MOM6: 16x Domain
-   ----------------
+.. notes::
 
-   .. image:: img/mom6_roofline_all_4x.svg
-      :width: 80%
+   Throwing points on a roofline diagram offers potentially greater context
+
+   Big caveat:
+
+   - This is work in progress
+
+   - FLOPs are reasonably confident, bandwidths are *not*!
+
+   - But I have a method for estimation that matches idealized tests
+
+   (Also: No GPU involved, only added here for context)
+
+   Observations:
+
+   - All functions follow the general "arithmetic intensity trend":
+      
+      - higher AI means higher FLOP rate
+
+   - If these are to be believed, then all functions are doing reasonably well
+
+      - None languishing in a RAM-bound abyss, but are cache-bound
+
+   - The fastest functions have high AI but are not necessarily most
+     efficient, and are rather "below the curve"
+
+   - Two points in the top left are notable (horizontal viscosity, coriolis
+     force) since they were recent targets of major vectorization speedups
+
+   - Other notably slow functions (btstep, rk2) are both low AI and below the
+     curve
+
+   - Finally, many functions are arguably "faster" than would be possible on a
+     GPU.
+
+   Take these conclusions with some skepticism, this needs more analysis.  But
+   I do believe that such an analysis ought to be possible and available for
+   developers.
+
+
+MOM6: 16x Domain
+----------------
+
+.. image:: img/mom6_roofline_all_4x.svg
+   :width: 80%
 
 
 MOM6: All subroutines
@@ -633,6 +774,24 @@ Highest points correspond to recent optimization efforts
 
 Summary
 =======
+
+* Arithmetic intensity is a strong indicator of bandwidth-limited performance
+
+* CPUs benefit from modest arrays (~1M)
+
+* GPUs favor very large arrays and implicit solvers
+
+* Roofline analysis enables performance prediction and targeted optimzation
+
+Further Work
+
+* Build up a "calculus" of :math:`W_\text{FLOP}` estimation
+
+* Develop confidence in estimating model bandwidth
+
+
+Old summary
+-----------
 
 * Most ocean model solvers are bandwidth-limited
 

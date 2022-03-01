@@ -89,6 +89,19 @@
 <section>
 <section id="peak-performance" class="title-slide slide level1">
 <h1>Peak Performance</h1>
+<p><img data-src="img/dgemm_vs_daxpy.svg" alt="image" /></p>
+<aside class="notes">
+<ul>
+<li>x: length of array, or sqrt(dim) of square matrix</li>
+<li>Nvidia DGEMM and DAXPY from cuBLAS</li>
+<li>Intel DGEMM results from MKL</li>
+<li>Intel DAXPY results from Optiflop</li>
+</ul>
+<p>Note: Optiflop DAXPY results agree with cuBLAS.</p>
+</aside>
+</section>
+<section id="peak-hardware" class="slide level2">
+<h2>Peak Hardware</h2>
 <p><span class="math display">\[W_\text{FLOPS} = W_\text{core} \times N_\text{cores} \times f_\text{cycles}\]</span></p>
 <table>
 <thead>
@@ -168,37 +181,32 @@
 </dd>
 </dl>
 </section></section>
-<section id="matrix-performance" class="title-slide slide level1">
-<h1>Matrix Performance</h1>
-<p><img data-src="img/dgemm.svg" alt="image" /></p>
-<aside class="notes">
-<ul>
-<li>x: length of array, or sqrt(dim) of square matrix</li>
-<li>Nvidia DGEMM and DAXPY from cuBLAS</li>
-<li>Intel DGEMM results from MKL</li>
-<li>Intel DAXPY results from Optiflop</li>
-</ul>
-<p>Note: Optiflop DAXPY results agree with cuBLAS.</p>
-</aside>
-</section>
-
-<section id="array-performance" class="title-slide slide level1">
-<h1>Array Performance</h1>
-<p><img data-src="img/dgemm_vs_daxpy.svg" alt="image" /></p>
-<aside class="notes">
-<ul>
-<li>x: length of array, or sqrt(dim) of square matrix</li>
-<li>Nvidia DGEMM and DAXPY from cuBLAS</li>
-<li>Intel DGEMM results from MKL</li>
-<li>Intel DAXPY results from Optiflop</li>
-</ul>
-<p>Note: Optiflop DAXPY results agree with cuBLAS.</p>
-</aside>
-</section>
-
 <section>
-<section id="compute-bound" class="title-slide slide level1">
-<h1>Compute Bound</h1>
+<section id="arithmetic-intensity" class="title-slide slide level1">
+<h1>Arithmetic Intensity</h1>
+<table>
+<tbody>
+<tr class="odd">
+<td>Operation</td>
+<td>FLOPs/byte</td>
+<td>AI</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\text{C}_{ij} = \sum_{k} A_{ik} B_{kj}\)</span></td>
+<td><span class="math inline">\(\frac{2n^3}{3n^2 \times \texttt{sizeof}(A)}\)</span></td>
+<td><span class="math inline">\(\frac{1}{12}n\)</span></td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\phi_{i} = \phi_{i} + \Delta t \mathcal{F}_{i}\)</span></td>
+<td><span class="math inline">\(\frac{2n}{3n \times \texttt{sizeof} (\phi)}\)</span></td>
+<td><span class="math inline">\(\frac{1}{12}\)</span></td>
+</tr>
+</tbody>
+</table>
+<p>Array computation is proportional to bandwidth</p>
+</section>
+<section id="compute-bound" class="slide level2">
+<h2>Compute Bound</h2>
 <p>Matrix Multiplication (<code>DGEMM</code>)</p>
 <p><span class="math display">\[\text{C}_{ij} = \sum_{k} A_{ik} B_{kj}\]</span><span class="math display">\[\frac{\text{FLOPs}}{\text{byte}}
    = \frac{2n^3}{3n^2 \times \texttt{sizeof}(A)}
@@ -212,10 +220,9 @@
       - \mathbf{u} \cdot \nabla \mathbf{u} -\nabla p + \mathcal{F}\]</span><span class="math display">\[\nabla^2 p = -\nabla \left( \mathbf{u} \cdot \nabla \mathbf{u} \right)
       - \nabla \cdot \mathcal{F}\]</span></p>
 <p>Pressure (Montgomery potential, PV, ...) solver is a (sparse) matrix operation.</p>
-</section></section>
-<section>
-<section id="memory-bound" class="title-slide slide level1">
-<h1>Memory Bound</h1>
+</section>
+<section id="memory-bound" class="slide level2">
+<h2>Memory Bound</h2>
 <p>Field update (<code>DAXPY</code>)</p>
 <p><span class="math display">\[\phi_{i} = \phi_{i} + \Delta t \mathcal{F}_{i}\]</span><span class="math display">\[\frac{\text{FLOPs}}{\text{byte}}
    = \frac{2n}{3n \times \texttt{sizeof} (\phi)}
@@ -232,10 +239,8 @@
 <section>
 <section id="performance-bounds" class="title-slide slide level1">
 <h1>Performance Bounds</h1>
-<p><img data-src="img/cascade_lake_flops.svg" alt="image" /></p>
-<aside class="notes">
-<p>Difference expressions will exhibit</p>
-</aside>
+<p><img data-src="img/cascade_lake_perf.svg" alt="image" /></p>
+<p><span class="math inline">\(W_\text{FLOPS} = I \times B_\text{mem}\)</span></p>
 </section>
 <section id="how-these-are-produced" class="slide level2">
 <h2>How these are produced</h2>
@@ -257,25 +262,6 @@ void kernel(int i, double a, double b, double *x, double *y) {
 }</code></pre>
 <p>Apply artificially high iteration, but let the compiler construct the kernel.</p>
 </section>
-<section id="unaccounted-factors" class="slide level2">
-<h2>Unaccounted Factors</h2>
-<ul>
-<li>Pipelining</li>
-<li>Instruction latency</li>
-<li>Instruction decoder</li>
-<li>Variable Clock Frequency</li>
-<li>Depletion of registers</li>
-</ul>
-</section></section>
-<section>
-<section id="roofline-modeling" class="title-slide slide level1">
-<h1>Roofline Modeling</h1>
-<p><img data-src="img/cascade_lake_roofline.svg" style="width:50.0%" alt="image" /></p>
-<p><span class="math inline">\(W_\text{FLOPS} = I \times B_\text{mem}\)</span></p>
-<aside class="notes">
-<p>Adjacent lines have the same AI</p>
-</aside>
-</section>
 <section id="the-roofline-model" class="slide level2">
 <h2>The Roofline Model</h2>
 <p><span class="math display">\[W = \text{min}(W_\text{max}, I \times B_\text{mem})\]</span></p>
@@ -296,6 +282,16 @@ void kernel(int i, double a, double b, double *x, double *y) {
 <p>ECM is an alternative model</p>
 <p>We want to keep things very simple and just emphasize the role of bandwidth.</p>
 </aside>
+</section>
+<section id="unaccounted-factors" class="slide level2">
+<h2>Unaccounted Factors</h2>
+<ul>
+<li>Pipelining</li>
+<li>Instruction latency</li>
+<li>Instruction decoder</li>
+<li>Variable Clock Frequency</li>
+<li>Depletion of registers</li>
+</ul>
 </section></section>
 <section>
 <section id="peak-bandwidth" class="title-slide slide level1">
@@ -376,16 +372,54 @@ void kernel(int i, double a, double b, double *x, double *y) {
 <p><a href="https://blogs.fau.de/hager/archives/8683">https://blogs.fau.de/hager/archives/8683</a></p>
 </aside>
 </section></section>
+<section>
 <section id="euler-step" class="title-slide slide level1">
 <h1>Euler Step</h1>
+<p><span class="math display">\[\phi^{n+1}_i = \phi^n_i
+   + \Delta t \left( \frac{\partial \phi}{\partial t} \right)_i
+ \qquad I = \frac{2}{3\times 8} = \frac{1}{12}\]</span></p>
+<pre class="c"><code>y[i] = y[i] + a * x[i]</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th>Platform</th>
+<th>Theory (GF/s)</th>
+<th>Observed</th>
+<th>%</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>x86 (Cache)</td>
+<td>716.8</td>
+<td>715.1</td>
+<td>99.7</td>
+</tr>
+<tr class="even">
+<td>x86 (RAM)</td>
+<td>11.7</td>
+<td>9.5</td>
+<td>80.8</td>
+</tr>
+<tr class="odd">
+<td>GPU</td>
+<td>74.8</td>
+<td>67.3</td>
+<td>90.0</td>
+</tr>
+</tbody>
+</table>
+<p>RAM efficiencies of 80-90% are common</p>
+</section>
+<section id="euler-step-1" class="slide level2">
+<h2>Euler Step</h2>
 <p><span class="math display">\[\phi^{n+1}_i = \phi^n_i
    + \Delta t \left( \frac{\partial \phi}{\partial t} \right)_i\]</span></p>
 <pre class="c"><code>y[i] = y[i] + a * x[i]</code></pre>
 <p>2 FLOPs per 3×8 bytes: <span class="math inline">\(\frac{1}{12}\)</span></p>
 </section>
-
-<section id="peak-euler" class="title-slide slide level1">
-<h1>Peak Euler</h1>
+<section id="peak-euler" class="slide level2">
+<h2>Peak Euler</h2>
 <table>
 <thead>
 <tr class="header">
@@ -432,17 +466,22 @@ void kernel(int i, double a, double b, double *x, double *y) {
 </dl>
 <p>I can't get this 70.9 number anymore..? Now getting 67.3 or so.</p>
 </aside>
-</section>
-
+</section></section>
 <section>
 <section id="diffusion-solver" class="title-slide slide level1">
 <h1>Diffusion Solver</h1>
 <p><span class="math display">\[\phi^{n+1}_i = \phi^n_i + \frac{\Delta t}{\Delta x^2}
    \left(\phi^n_{i+1} - 2 \phi^n_i + \phi^n_{i-1} \right)\]</span></p>
-<pre class="c"><code>y[i] = a * x[i] + b * (x[i+1] + x[i-1])
+<pre class="c"><code>y[i] = a * x[i] + b * x[i+1] + b * x[i-1]
 
 x[i] = y[i]</code></pre>
 <p>4 FLOPs (amortized) per 4×8 bytes: <span class="math inline">\(\frac{1}{8}\)</span></p>
+<p>"Write-allocate": RAM-bound does extra read: <span class="math inline">\(\frac{1}{10}\)</span></p>
+<aside class="notes">
+<p><a href="https://blogs.fau.de/hager/archives/8263">https://blogs.fau.de/hager/archives/8263</a></p>
+<p><a href="https://www.cs.virginia.edu/stream/ref.html#counting">https://www.cs.virginia.edu/stream/ref.html#counting</a></p>
+<p>No idea why GPU is a half-grid, but this is a hardware-implementation issue</p>
+</aside>
 </section>
 <section id="how-many-flops" class="slide level2">
 <h2>How many FLOPS?</h2>
@@ -455,18 +494,8 @@ x[i] = y[i]</code></pre>
 <pre class=""><code>y[i] = a * x[i] + b * (x[i-1] + x[i+1])</code></pre>
 <p>This is a compiler question: Do we follow parentheses?</p>
 </section>
-<section id="loop-unrolling" class="slide level2">
-<h2>Loop Unrolling</h2>
-<p>Number of unrolls changes the solver:</p>
-<p>One unroll:</p>
-<pre class="c"><code>y[i] = a * x[i] + b (x[i-1] + x[i+1])</code></pre>
-<p>Two unrolls:</p>
-<pre class="c"><code>y[i] = a * x[i] + b * x[i-1] + b * x[i+1]</code></pre>
-<pre class="c"><code>y[i+2] = a * x[i+2] + b * x[i+1] + b * x[i+3]</code></pre>
-</section></section>
-<section>
-<section id="diffusion-performance" class="title-slide slide level1">
-<h1>Diffusion Performance</h1>
+<section id="naive-diffusion-perf" class="slide level2">
+<h2>Naive Diffusion Perf</h2>
 <table>
 <thead>
 <tr class="header">
@@ -533,8 +562,9 @@ x[i] = y[i]</code></pre>
 </table>
 <p>Single-displacement has a performance penalty</p>
 </section></section>
-<section id="write-allocate-effect" class="title-slide slide level1">
-<h1>Write-Allocate Effect</h1>
+<section>
+<section id="diffusion-performance" class="title-slide slide level1">
+<h1>Diffusion Performance</h1>
 <table>
 <thead>
 <tr class="header">
@@ -555,7 +585,7 @@ x[i] = y[i]</code></pre>
 <td>x86 (RAM)</td>
 <td>10.8</td>
 <td>14.1</td>
-<td>76.8</td>
+<td>76.7</td>
 </tr>
 <tr class="odd">
 <td>GPU</td>
@@ -565,17 +595,10 @@ x[i] = y[i]</code></pre>
 </tr>
 </tbody>
 </table>
-<p>First stage has an extra read: <span class="math inline">\(I = \frac{1}{10}\)</span></p>
-<aside class="notes">
-<p><a href="https://blogs.fau.de/hager/archives/8263">https://blogs.fau.de/hager/archives/8263</a></p>
-<p><a href="https://www.cs.virginia.edu/stream/ref.html#counting">https://www.cs.virginia.edu/stream/ref.html#counting</a></p>
-<p>No idea why GPU is a half-grid, but this is a hardware-implementation issue</p>
-</aside>
+<p>Multistage loops incur a penalty</p>
 </section>
-
-<section>
-<section id="staging-penalty" class="title-slide slide level1">
-<h1>Staging Penalty</h1>
+<section id="staging-penalty" class="slide level2">
+<h2>Staging Penalty</h2>
 <table>
 <thead>
 <tr class="header">
@@ -677,9 +700,9 @@ x[i] = y[i]</code></pre>
 <section id="mom6-all-subroutines" class="slide level2">
 <h2>MOM6: All subroutines</h2>
 <p><img data-src="img/mom6_roofline_all_1x.svg" style="width:60.0%" alt="image" /></p>
-</section></section>
-<section id="recent-speedups" class="title-slide slide level1">
-<h1>Recent Speedups</h1>
+</section>
+<section id="recent-speedups" class="slide level2">
+<h2>Recent Speedups</h2>
 <table>
 <thead>
 <tr class="header">
@@ -703,8 +726,7 @@ x[i] = y[i]</code></pre>
 </table>
 <p>Highest points correspond to recent optimization efforts</p>
 <p>(NOTE: Timings are from a different config)</p>
-</section>
-
+</section></section>
 <section id="summary" class="title-slide slide level1">
 <h1>Summary</h1>
 <ul>

@@ -46,6 +46,22 @@ Estimating and measuring peak performance of numerical ocean model algorithms
 Peak Performance
 ================
 
+.. image:: img/dgemm_vs_daxpy.svg
+
+.. notes::
+
+   * x: length of array, or sqrt(dim) of square matrix
+
+   * Nvidia DGEMM and DAXPY from cuBLAS
+   * Intel DGEMM results from MKL
+   * Intel DAXPY results from Optiflop
+
+   Note: Optiflop DAXPY results agree with cuBLAS.
+
+
+Peak Hardware
+-------------
+
 .. math::
 
    W_\text{FLOPS} = W_\text{core} \times N_\text{cores} \times f_\text{cycles}
@@ -97,40 +113,34 @@ Volta
    Nvidia Volta GV100 (1.38GHz)
 
 
-Matrix Performance
-==================
+Arithmetic Intensity
+====================
 
-.. image:: img/dgemm.svg
+.. list-table::
 
-.. notes::
+   * - Operation
+   
+     - FLOPs/byte
 
-   * x: length of array, or sqrt(dim) of square matrix
+     - AI
 
-   * Nvidia DGEMM and DAXPY from cuBLAS
-   * Intel DGEMM results from MKL
-   * Intel DAXPY results from Optiflop
+   * - :math:`\text{C}_{ij} = \sum_{k} A_{ik} B_{kj}`
+   
+     - :math:`\frac{2n^3}{3n^2 \times \texttt{sizeof}(A)}`
 
-   Note: Optiflop DAXPY results agree with cuBLAS.
+     - :math:`\frac{1}{12}n`
 
+   * - :math:`\phi_{i} = \phi_{i} + \Delta t \mathcal{F}_{i}`
+   
+     - :math:`\frac{2n}{3n \times \texttt{sizeof} (\phi)}`
 
-Array Performance
-=================
+     - :math:`\frac{1}{12}`
 
-.. image:: img/dgemm_vs_daxpy.svg
-
-.. notes::
-
-   * x: length of array, or sqrt(dim) of square matrix
-
-   * Nvidia DGEMM and DAXPY from cuBLAS
-   * Intel DGEMM results from MKL
-   * Intel DAXPY results from Optiflop
-
-   Note: Optiflop DAXPY results agree with cuBLAS.
+Array computation is proportional to bandwidth
 
 
 Compute Bound
-=============
+-------------
 
 Matrix Multiplication (``DGEMM``)
 
@@ -162,7 +172,7 @@ Pressure (Montgomery potential, PV, ...) solver is a (sparse) matrix operation.
 
 
 Memory Bound
-============
+------------
 
 Field update (``DAXPY``)
 
@@ -194,15 +204,12 @@ Hydrostatic balance eliminates elliptic step:
 Many barotropic solvers are also hyperbolic.
 
 
-
 Performance Bounds
 ==================
 
-.. image:: img/cascade_lake_flops.svg
+.. image:: img/cascade_lake_perf.svg
 
-.. notes::
-
-   Difference expressions will exhibit
+:math:`W_\text{FLOPS} = I \times B_\text{mem}`
 
 
 How these are produced
@@ -228,33 +235,6 @@ How these are produced
    }
 
 Apply artificially high iteration, but let the compiler construct the kernel.
-
-
-Unaccounted Factors
--------------------
-
-* Pipelining
-
-* Instruction latency
-
-* Instruction decoder
-
-* Variable Clock Frequency
-
-* Depletion of registers
-
-
-Roofline Modeling
-=================
-
-.. image:: img/cascade_lake_roofline.svg
-   :width: 50%
-
-:math:`W_\text{FLOPS} = I \times B_\text{mem}`
-
-.. notes::
-
-   Adjacent lines have the same AI
 
 
 The Roofline Model
@@ -288,6 +268,20 @@ For our codes, often :math:`W = I \times B_\text{mem}`
    ECM is an alternative model
 
    We want to keep things very simple and just emphasize the role of bandwidth.
+
+
+Unaccounted Factors
+-------------------
+
+* Pipelining
+
+* Instruction latency
+
+* Instruction decoder
+
+* Variable Clock Frequency
+
+* Depletion of registers
 
 
 Peak Bandwidth
@@ -352,6 +346,31 @@ Euler Step
 
    \phi^{n+1}_i = \phi^n_i
       + \Delta t \left( \frac{\partial \phi}{\partial t} \right)_i
+    \qquad I = \frac{2}{3\times 8} = \frac{1}{12}
+
+.. code:: c
+
+   y[i] = y[i] + a * x[i]
+
+
+=========== =============  ======== ====
+Platform    Theory (GF/s)  Observed %
+=========== =============  ======== ====
+x86 (Cache) 716.8          715.1    99.7
+x86 (RAM)   11.7           9.5      80.8
+GPU         74.8           67.3     90.0
+=========== =============  ======== ====
+
+RAM efficiencies of 80-90% are common
+
+
+Euler Step
+----------
+
+.. math::
+
+   \phi^{n+1}_i = \phi^n_i
+      + \Delta t \left( \frac{\partial \phi}{\partial t} \right)_i
 
 .. code:: c
 
@@ -361,7 +380,7 @@ Euler Step
 
 
 Peak Euler
-==========
+----------
 
 =========== ======== ======   ====
 Platform    Observed Theory   %
@@ -399,11 +418,21 @@ Diffusion Solver
 
 .. code:: c
 
-   y[i] = a * x[i] + b * (x[i+1] + x[i-1])
+   y[i] = a * x[i] + b * x[i+1] + b * x[i-1]
 
    x[i] = y[i]
 
 4 FLOPs (amortized) per 4×8 bytes: :math:`\frac{1}{8}`
+
+"Write-allocate": RAM-bound does extra read: :math:`\frac{1}{10}`
+
+.. notes::
+
+   https://blogs.fau.de/hager/archives/8263
+
+   https://www.cs.virginia.edu/stream/ref.html#counting
+
+   No idea why GPU is a half-grid, but this is a hardware-implementation issue
 
 
 How many FLOPS?
@@ -432,30 +461,8 @@ Is it four or five operations?
 This is a compiler question: Do we follow parentheses?
 
 
-Loop Unrolling
---------------
-
-Number of unrolls changes the solver:
-
-One unroll:
-
-.. code:: c
-
-   y[i] = a * x[i] + b (x[i-1] + x[i+1])
-
-Two unrolls:
-
-.. code:: c
-
-   y[i] = a * x[i] + b * x[i-1] + b * x[i+1]
-
-.. code:: c
-
-   y[i+2] = a * x[i+2] + b * x[i+1] + b * x[i+3]
-
-
-Diffusion Performance
-=====================
+Naive Diffusion Perf
+--------------------
 
 =========== ======== ======   ====
 Platform    Observed Theory   %
@@ -482,30 +489,22 @@ GPU         81.1  81.1     112.3
 Single-displacement has a performance penalty
 
 
-Write-Allocate Effect
+Diffusion Performance
 =====================
 
 =========== ======== ======   ====
 Platform    Observed Theory   %
 =========== ======== ======   ====
 x86 (Cache) 690.7    1075.2   64.2
-x86 (RAM)   10.8     14.1     76.8
+x86 (RAM)   10.8     14.1     76.7
 GPU         81.1     89.9     90.2
 =========== ======== ======   ====
 
-First stage has an extra read: :math:`I = \frac{1}{10}`
-
-.. notes::
-
-   https://blogs.fau.de/hager/archives/8263
-
-   https://www.cs.virginia.edu/stream/ref.html#counting
-
-   No idea why GPU is a half-grid, but this is a hardware-implementation issue
+Multistage loops incur a penalty
 
 
 Staging Penalty
-===============
+---------------
 
 ==========================================   =========   ==========  ====
 Stage                                        Observed    Theory      %
@@ -618,7 +617,7 @@ MOM6: All subroutines
 
 
 Recent Speedups
-===============
+---------------
 
 =============  =============     =======
 Subroutine     Runtime           Speedup

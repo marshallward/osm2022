@@ -11,11 +11,17 @@ Estimating and measuring peak performance of numerical ocean model algorithms
 :preface:
    Going to discuss Computational performance of models
 
+   Rather than, say, the numerical accuracy or fidelity of the solution
+
+   So more like
+
    - The rate we produce work
 
    - Not necessarily *useful* work!
 
-   Relative statements of performance are common
+   But nonetheless an important metric to understand our modeling capacity
+
+   Discussions of performance are often based on relative measurements, e.g.
 
    - Model "scales well"
 

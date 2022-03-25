@@ -425,7 +425,7 @@ Peak Euler
 Platform    Observed Theory   %
 =========== ======== ======   ====
 x86 (Cache) 715.1    716.8    99.7
-x86 (RAM)   9.5      11.7     80.8
+x86 (RAM)   9.5      11.7     81.2
 GPU         67.3     74.8     90.0
 =========== ======== ======   ====
 
@@ -447,6 +447,59 @@ RAM efficiencies of 80-90% are common
    I can't get this 70.9 number anymore..?  Now getting 67.3 or so.
 
 
+Finite Difference
+=================
+
+.. math::
+
+   \phi_{i+\tfrac{1}{2}} = \frac{1}{2} \left( \phi_i + \phi_{i+1} \right)
+   \qquad I = \frac{2}{2\times 8} = \frac{1}{8}
+
+.. code:: c
+
+   y[i] = a * (x[i+1] + x[i])
+
+
+=========== =============  ======== ====
+Platform    Theory (GF/s)  Observed %
+=========== =============  ======== ====
+x86 (Cache) 1075.3         781.4    72.7
+x86 (RAM)   17.6           9.4      53.4
+GPU         112.3          72.4     64.5
+=========== =============  ======== ====
+
+Why are estimates so much lower?
+
+
+Write-Allocate Effect
+=====================
+
+Unlike Euler step, target is not on LHS:
+
+.. code:: c
+
+   y[i] = a * x[i+1] + a * x[i]
+
+=========== =============  ======== ====
+Platform    Theory (GF/s)  Observed %
+=========== =============  ======== ====
+x86 (Cache) 1075.3         781.4    72.7
+x86 (RAM)   11.7           9.4      80.1
+GPU         74.8           72.4     96.8
+=========== =============  ======== ====
+
+For RAM-bound, there is an implicit read: :math:`I = \frac{1}{12}` 
+
+.. notes::
+
+   https://blogs.fau.de/hager/archives/8263
+
+   https://www.cs.virginia.edu/stream/ref.html#counting
+
+   Still no idea about the cache-bound result
+   ... but faster than 716 GF/s
+
+
 Diffusion Solver
 ================
 
@@ -463,7 +516,7 @@ Diffusion Solver
 
 4 FLOPs (amortized) per 4×8 bytes: :math:`I = \frac{1}{8}`
 
-"Write-allocate" (+1 RAM read): :math:`I_\text{RAM} = \frac{1}{10}`
+RAM-bound: :math:`I_\text{RAM} = \frac{1}{10}`
 
 .. notes::
 
@@ -663,6 +716,8 @@ MOM6 Performance
 
 .. image:: img/mom6_subrt_flops.svg
 
+High FLOP rates don't necessarily indicate efficiency...
+
 .. notes::
 
    Major subroutines are shown here:
@@ -677,6 +732,25 @@ MOM6 Performance
 
    It does not necessarily capture where to find the most room for improvement
 
+
+Objective AI
+============
+
+Can we measure the subroutine intensity?
+
+* FLOP count is reasonably accurate
+
+* We *cannot* count bytes, but can count *transfers*
+
+Estimate bandwidth by ratio of instructions.
+
+.. math::
+
+   I \approx \frac{N_\text{FLOPs}}
+      {8 \times \left( N_\text{iLoad} + N_\text{iStore} \right)
+         \times \alpha_\text{vec}}
+
+where :math:`\alpha_\text{vec} = N_\text{FLOPs} / N_\text{iFLOPs}`
 
 
 MOM6 Roofline

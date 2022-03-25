@@ -485,7 +485,7 @@ void kernel(int i, double a, double b, double *x, double *y) {
 <td>x86 (RAM)</td>
 <td>9.5</td>
 <td>11.7</td>
-<td>80.8</td>
+<td>81.2</td>
 </tr>
 <tr class="odd">
 <td>GPU</td>
@@ -512,6 +512,86 @@ void kernel(int i, double a, double b, double *x, double *y) {
 <p>I can't get this 70.9 number anymore..? Now getting 67.3 or so.</p>
 </aside>
 </section></section>
+<section id="finite-difference" class="title-slide slide level1">
+<h1>Finite Difference</h1>
+<p><span class="math display">\[\phi_{i+\tfrac{1}{2}} = \frac{1}{2} \left( \phi_i + \phi_{i+1} \right)
+\qquad I = \frac{2}{2\times 8} = \frac{1}{8}\]</span></p>
+<pre class="c"><code>y[i] = a * (x[i+1] + x[i])</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th>Platform</th>
+<th>Theory (GF/s)</th>
+<th>Observed</th>
+<th>%</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>x86 (Cache)</td>
+<td>1075.3</td>
+<td>781.4</td>
+<td>72.7</td>
+</tr>
+<tr class="even">
+<td>x86 (RAM)</td>
+<td>17.6</td>
+<td>9.4</td>
+<td>53.4</td>
+</tr>
+<tr class="odd">
+<td>GPU</td>
+<td>112.3</td>
+<td>72.4</td>
+<td>64.5</td>
+</tr>
+</tbody>
+</table>
+<p>Why are estimates so much lower?</p>
+</section>
+
+<section id="write-allocate-effect" class="title-slide slide level1">
+<h1>Write-Allocate Effect</h1>
+<p>Unlike Euler step, target is not on LHS:</p>
+<pre class="c"><code>y[i] = a * x[i+1] + a * x[i]</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th>Platform</th>
+<th>Theory (GF/s)</th>
+<th>Observed</th>
+<th>%</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>x86 (Cache)</td>
+<td>1075.3</td>
+<td>781.4</td>
+<td>72.7</td>
+</tr>
+<tr class="even">
+<td>x86 (RAM)</td>
+<td>11.7</td>
+<td>9.4</td>
+<td>80.1</td>
+</tr>
+<tr class="odd">
+<td>GPU</td>
+<td>74.8</td>
+<td>72.4</td>
+<td>96.8</td>
+</tr>
+</tbody>
+</table>
+<p>For RAM-bound, there is an implicit read: <span class="math inline">\(I = \frac{1}{12}\)</span></p>
+<aside class="notes">
+<p><a href="https://blogs.fau.de/hager/archives/8263">https://blogs.fau.de/hager/archives/8263</a></p>
+<p><a href="https://www.cs.virginia.edu/stream/ref.html#counting">https://www.cs.virginia.edu/stream/ref.html#counting</a></p>
+<p>Still no idea about the cache-bound result ... but faster than 716 GF/s</p>
+</aside>
+</section>
+
 <section>
 <section id="diffusion-solver" class="title-slide slide level1">
 <h1>Diffusion Solver</h1>
@@ -521,7 +601,7 @@ void kernel(int i, double a, double b, double *x, double *y) {
 
 x[i] = y[i]</code></pre>
 <p>4 FLOPs (amortized) per 4×8 bytes: <span class="math inline">\(I = \frac{1}{8}\)</span></p>
-<p>"Write-allocate" (+1 RAM read): <span class="math inline">\(I_\text{RAM} = \frac{1}{10}\)</span></p>
+<p>RAM-bound: <span class="math inline">\(I_\text{RAM} = \frac{1}{10}\)</span></p>
 <aside class="notes">
 <p>As a more complicated model, consider a simple discretization of the diffusion equation.</p>
 <p>Interesting for several reasons:</p>
@@ -752,6 +832,7 @@ x[i] = y[i]</code></pre>
 <section id="mom6-performance" class="title-slide slide level1">
 <h1>MOM6 Performance</h1>
 <p><img data-src="img/mom6_subrt_flops.svg" alt="image" /></p>
+<p>High FLOP rates don't necessarily indicate efficiency...</p>
 <aside class="notes">
 <p>Major subroutines are shown here:</p>
 <ul>
@@ -762,6 +843,20 @@ x[i] = y[i]</code></pre>
 <p>Important to identify the "fast" and "slow" ones, but..</p>
 <p>It does not necessarily capture where to find the most room for improvement</p>
 </aside>
+</section>
+
+<section id="objective-intensity" class="title-slide slide level1">
+<h1>Objective Intensity</h1>
+<p>Can we measure the subroutine intensity?</p>
+<ul>
+<li>FLOP count is reasonably accurate</li>
+<li>We <em>cannot</em> count bytes, but can count <em>transfers</em></li>
+</ul>
+<p>Estimate bandwidth by ratio of instructions.</p>
+<p><span class="math display">\[I \approx \frac{N_\text{FLOPs}}
+   {8 \times \left( N_\text{iLoad} + N_\text{iStore} \right)
+      \times \alpha_\text{vec}}\]</span></p>
+<p>where <span class="math inline">\(\alpha_\text{vec} = N_\text{FLOPs} / N_\text{iFLOPs}\)</span></p>
 </section>
 
 <section>

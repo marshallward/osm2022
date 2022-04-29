@@ -35,6 +35,37 @@ In pursuit of peak computational performance
    So this talk is perhaps a first attempt to start this conversation
 
 
+Relative Scaling
+================
+
+.. image:: img/mom5_scaling.svg
+
+.. notes::
+
+   If reported at all, this is usually what you see
+
+   Model "scales well"
+
+   Essential fact, but only one component!
+
+
+Relative Comparisons
+====================
+
+.. image:: img/mom_nemo_ocn.svg
+   :width: 80%
+
+
+Goals
+=====
+
+* Can we talk about *absolute* model performance?
+
+* Can we estimate the idealized *peak* performance?
+
+* When do CPUs and GPUs provide that performance?
+
+
 Hardware Peak
 =============
 
@@ -214,7 +245,7 @@ Performance Bounds
 
 .. image:: img/cascade_lake_perf.svg
 
-:math:`W_\text{FLOPS} = I \times B_\text{mem}`
+:math:`W_\text{FLOPS} \leq I \times B_\text{mem}`
 
 .. notes::
 
@@ -320,6 +351,8 @@ x86 (cache) 8600
 x86 (RAM)   140
 Volta (RAM) 900
 =========== =========
+
+Cache BW is across *all* cores!
 
 .. notes::
 
@@ -457,7 +490,7 @@ Finite Difference
 
 .. code:: c
 
-   y[i] = a * (x[i+1] + x[i])
+   y[i] = a * (x[i] + x[i+1])
 
 
 =========== =============  ======== ====
@@ -474,11 +507,11 @@ Why are estimates so much lower?
 Write-Allocate Effect
 =====================
 
-Unlike Euler step, target is not on LHS:
+Unlike Euler step, target is not on RHS:
 
 .. code:: c
 
-   y[i] = a * x[i+1] + a * x[i]
+   y[i] = a * x[i] + a * x[i+1]
 
 =========== =============  ======== ====
 Platform    Theory (GF/s)  Observed %
@@ -488,7 +521,8 @@ x86 (RAM)   11.7           9.4      80.1
 GPU         74.8           72.4     96.8
 =========== =============  ======== ====
 
-For RAM-bound, there is an implicit read: :math:`I = \frac{1}{12}` 
+For RAM writes, one implicit read: :math:`I_\text{RAM} = \frac{1}{12}` 
+
 
 .. notes::
 
@@ -498,6 +532,12 @@ For RAM-bound, there is an implicit read: :math:`I = \frac{1}{12}`
 
    Still no idea about the cache-bound result
    ... but faster than 716 GF/s
+
+
+W-A Roofline
+============
+
+.. image:: img/cascade_lake_perf_write_alloc.svg
 
 
 Diffusion Solver
@@ -510,7 +550,7 @@ Diffusion Solver
 
 .. code:: c
 
-   y[i] = a * x[i] + b * x[i+1] + b * x[i-1]
+   y[i] = a * x[i-1] + b * x[i] + a * x[i+1]
 
    x[i] = y[i]
 
@@ -539,22 +579,6 @@ RAM-bound: :math:`I_\text{RAM} = \frac{1}{10}`
 
    - 4 / (4*8) = 1/8
 
-   Write-allocate effect
-
-   - Unlike euler, the RHS does not appear on the LHS!
-
-   - RAM <-> Cache writes implicitly do a read
-
-   - 4 / (5*8) = 1/10
-
-   - Video discusses this in some more detail
-
-   Notes on write-allocate:
-
-   - https://blogs.fau.de/hager/archives/8263
-
-   - https://www.cs.virginia.edu/stream/ref.html#counting
-
 
 How many FLOPS?
 ---------------
@@ -579,21 +603,7 @@ Is it four or five operations?
 
    y[i] = a * x[i] + b * (x[i-1] + x[i+1])
 
-This is a compiler question: Do we follow parentheses?
-
-
-Naive Diffusion Perf
---------------------
-
-=========== ======== ======   ====
-Platform    Observed Theory   %
-=========== ======== ======   ====
-x86 (Cache) 690.7    1075.2   64.2
-x86 (RAM)   10.8     17.6     61.4
-GPU         81.1     112.3    72.2
-=========== ======== ======   ====
-
-Observed is significantly lower for :math:`I = \frac{1}{8}` ?
+Do we follow parentheses?  Ask the compiler!
 
 
 Aligned update
@@ -621,7 +631,7 @@ x86 (RAM)   14.1           10.8     76.7
 GPU         89.9           81.1     90.2
 =========== =============  ======== ====
 
-Multistage loops incur a penalty in cache
+Significant drop in cache performance
 
 .. notes::
 
@@ -636,12 +646,12 @@ Multistage loops incur a penalty in cache
 
 
 Staging Penalty
----------------
+===============
 
 ==========================================   =========   ==========  ====
 Stage                                        Observed    Theory      %
 ==========================================   =========   ==========  ====
-:math:`y \leftarrow x + \alpha \nabla^2 x`   1085 GF/s   1434* GF/s  75.7
+:math:`y \leftarrow x + \alpha \nabla^2 x`   1085 GF/s   1434 GF/s   75.7
 :math:`x \leftarrow y`                       9145 GB/s   9216* GB/s  99.2
 S1 + S2                                      691 GF/s    1075 GF/s   64.2
 ==========================================   =========   ==========  ====
@@ -667,13 +677,9 @@ Restarting on a new array incurs a performance penalty
 Theoretical values
 ------------------
 
-Why 1434 GFLOP/s?
-
-* A two-loop unroll exhausts registers!  An additional load is required.
-
 Why 9216 GB/s?
 
-* AVX512 copy is clocked at 3.0 GHz, slightly above AVX512 arithmetic at 2.8
+* AVX512 copy was clocked at 3.0 GHz, slightly above AVX512 arithmetic at 2.8
   GHz.
 
 
@@ -716,7 +722,7 @@ MOM6 Performance
 
 .. image:: img/mom6_subrt_flops.svg
 
-High FLOP rates don't necessarily indicate efficiency...
+High FLOPs don't necessarily indicate efficiency
 
 .. notes::
 
@@ -733,8 +739,8 @@ High FLOP rates don't necessarily indicate efficiency...
    It does not necessarily capture where to find the most room for improvement
 
 
-Objective AI
-============
+Observed AI
+===========
 
 Can we measure the subroutine intensity?
 
@@ -801,18 +807,18 @@ MOM6 Roofline
    developers.
 
 
-MOM6: 16x Domain
-----------------
-
-.. image:: img/mom6_roofline_all_4x.svg
-   :width: 80%
-
-
 MOM6: All subroutines
 ---------------------
 
 .. image:: img/mom6_roofline_all_1x.svg
    :width: 60%
+
+
+MOM6: 16x Domain
+----------------
+
+.. image:: img/mom6_roofline_all_4x.svg
+   :width: 80%
 
 
 Recent Speedups
@@ -828,6 +834,24 @@ Subroutine     Runtime           Speedup
 Highest points correspond to recent optimization efforts
 
 (NOTE: Timings are from a different config)
+
+
+Procedure
+=========
+
+* Compute :math:`I` for operation
+
+* If targeting CPUs:
+
+  * Seek optimal length, distribute across cores
+
+* If targeting GPUs:
+
+  * Push for very large domains
+
+* Evaluate performance, assess efficiency
+
+  * Seek improvements ("move up") if possible
 
 
 Summary
@@ -848,15 +872,9 @@ Further Work
 * Develop confidence in estimating model bandwidth
 
 
-Old summary
------------
+Future Hardware
+---------------
 
-* Most ocean model solvers are bandwidth-limited
+* Nvidia Hopper/Ampere have even greater bandwidth (> 2-3TB/s?)
 
-* Arithmetic intensity (AI) is a predictor of performance
-
-* CPUs benefit from modest arrays, but can tolerate larger ones
-
-* GPUs *strongly favor* large arrays, and implicit (matrix) solvers
-
-* AI can be used to strategize optimization
+* Fujitsu's A64FX: Combine cache CPU with HBM memory?

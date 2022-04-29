@@ -87,6 +87,30 @@
   </aside>
 </section>
 
+<section id="relative-scaling" class="title-slide slide level1">
+<h1>Relative Scaling</h1>
+<p><img data-src="img/mom5_scaling.svg" alt="image" /></p>
+<aside class="notes">
+<p>If reported at all, this is usually what you see</p>
+<p>Model "scales well"</p>
+<p>Essential fact, but only one component!</p>
+</aside>
+</section>
+
+<section id="relative-comparisons" class="title-slide slide level1">
+<h1>Relative Comparisons</h1>
+<p><img data-src="img/mom_nemo_ocn.svg" style="width:80.0%" alt="image" /></p>
+</section>
+
+<section id="goals" class="title-slide slide level1">
+<h1>Goals</h1>
+<ul>
+<li>Can we talk about <em>absolute</em> model performance?</li>
+<li>Can we estimate the idealized <em>peak</em> performance?</li>
+<li>When do CPUs and GPUs provide that performance?</li>
+</ul>
+</section>
+
 <section>
 <section id="hardware-peak" class="title-slide slide level1">
 <h1>Hardware Peak</h1>
@@ -260,7 +284,7 @@
 <section id="performance-bounds" class="title-slide slide level1">
 <h1>Performance Bounds</h1>
 <p><img data-src="img/cascade_lake_perf.svg" alt="image" /></p>
-<p><span class="math inline">\(W_\text{FLOPS} = I \times B_\text{mem}\)</span></p>
+<p><span class="math inline">\(W_\text{FLOPS} \leq I \times B_\text{mem}\)</span></p>
 <aside class="notes">
 <p>Several different computations shown on the left</p>
 <p>Mostly x86, but one GPU for comparison</p>
@@ -350,6 +374,7 @@ void kernel(int i, double a, double b, double *x, double *y) {
 </tr>
 </tbody>
 </table>
+<p>Cache BW is across <em>all</em> cores!</p>
 <aside class="notes">
 <p>"x86" is the Cascade Lake used in the previous figures</p>
 <p>"cache" refers to the L1 &lt;-&gt; register transfer speed</p>
@@ -516,7 +541,7 @@ void kernel(int i, double a, double b, double *x, double *y) {
 <h1>Finite Difference</h1>
 <p><span class="math display">\[\phi_{i+\tfrac{1}{2}} = \frac{1}{2} \left( \phi_i + \phi_{i+1} \right)
 \qquad I = \frac{2}{2\times 8} = \frac{1}{8}\]</span></p>
-<pre class="c"><code>y[i] = a * (x[i+1] + x[i])</code></pre>
+<pre class="c"><code>y[i] = a * (x[i] + x[i+1])</code></pre>
 <table>
 <thead>
 <tr class="header">
@@ -552,8 +577,8 @@ void kernel(int i, double a, double b, double *x, double *y) {
 
 <section id="write-allocate-effect" class="title-slide slide level1">
 <h1>Write-Allocate Effect</h1>
-<p>Unlike Euler step, target is not on LHS:</p>
-<pre class="c"><code>y[i] = a * x[i+1] + a * x[i]</code></pre>
+<p>Unlike Euler step, target is not on RHS:</p>
+<pre class="c"><code>y[i] = a * x[i] + a * x[i+1]</code></pre>
 <table>
 <thead>
 <tr class="header">
@@ -584,7 +609,7 @@ void kernel(int i, double a, double b, double *x, double *y) {
 </tr>
 </tbody>
 </table>
-<p>For RAM-bound, there is an implicit read: <span class="math inline">\(I = \frac{1}{12}\)</span></p>
+<p>For RAM writes, one implicit read: <span class="math inline">\(I_\text{RAM} = \frac{1}{12}\)</span></p>
 <aside class="notes">
 <p><a href="https://blogs.fau.de/hager/archives/8263">https://blogs.fau.de/hager/archives/8263</a></p>
 <p><a href="https://www.cs.virginia.edu/stream/ref.html#counting">https://www.cs.virginia.edu/stream/ref.html#counting</a></p>
@@ -592,12 +617,17 @@ void kernel(int i, double a, double b, double *x, double *y) {
 </aside>
 </section>
 
+<section id="w-a-roofline" class="title-slide slide level1">
+<h1>W-A Roofline</h1>
+<p><img data-src="img/cascade_lake_perf_write_alloc.svg" alt="image" /></p>
+</section>
+
 <section>
 <section id="diffusion-solver" class="title-slide slide level1">
 <h1>Diffusion Solver</h1>
 <p><span class="math display">\[\phi^{n+1}_i = \phi^n_i + \frac{\Delta t}{\Delta x^2}
    \left(\phi^n_{i+1} - 2 \phi^n_i + \phi^n_{i-1} \right)\]</span></p>
-<pre class="c"><code>y[i] = a * x[i] + b * x[i+1] + b * x[i-1]
+<pre class="c"><code>y[i] = a * x[i-1] + b * x[i] + a * x[i+1]
 
 x[i] = y[i]</code></pre>
 <p>4 FLOPs (amortized) per 4×8 bytes: <span class="math inline">\(I = \frac{1}{8}\)</span></p>
@@ -616,18 +646,6 @@ x[i] = y[i]</code></pre>
 <li>4 loads/stores:</li>
 <li>4 / (4*8) = 1/8</li>
 </ul>
-<p>Write-allocate effect</p>
-<ul>
-<li>Unlike euler, the RHS does not appear on the LHS!</li>
-<li>RAM &lt;-&gt; Cache writes implicitly do a read</li>
-<li>4 / (5*8) = 1/10</li>
-<li>Video discusses this in some more detail</li>
-</ul>
-<p>Notes on write-allocate:</p>
-<ul>
-<li><a href="https://blogs.fau.de/hager/archives/8263">https://blogs.fau.de/hager/archives/8263</a></li>
-<li><a href="https://www.cs.virginia.edu/stream/ref.html#counting">https://www.cs.virginia.edu/stream/ref.html#counting</a></li>
-</ul>
 </aside>
 </section>
 <section id="how-many-flops" class="slide level2">
@@ -639,41 +657,7 @@ x[i] = y[i]</code></pre>
 <p><span class="math display">\[\phi^{n+1}_i = \left( 1 - 2 \frac{\Delta t}{\Delta x^2} \right) \phi^n_i
    + \frac{\Delta t}{\Delta x^2} \left(\phi^n_{i+1} + \phi^n_{i-1} \right)\]</span></p>
 <pre class=""><code>y[i] = a * x[i] + b * (x[i-1] + x[i+1])</code></pre>
-<p>This is a compiler question: Do we follow parentheses?</p>
-</section>
-<section id="naive-diffusion-perf" class="slide level2">
-<h2>Naive Diffusion Perf</h2>
-<table>
-<thead>
-<tr class="header">
-<th>Platform</th>
-<th>Observed</th>
-<th>Theory</th>
-<th>%</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>x86 (Cache)</td>
-<td>690.7</td>
-<td>1075.2</td>
-<td>64.2</td>
-</tr>
-<tr class="even">
-<td>x86 (RAM)</td>
-<td>10.8</td>
-<td>17.6</td>
-<td>61.4</td>
-</tr>
-<tr class="odd">
-<td>GPU</td>
-<td>81.1</td>
-<td>112.3</td>
-<td>72.2</td>
-</tr>
-</tbody>
-</table>
-<p>Observed is significantly lower for <span class="math inline">\(I = \frac{1}{8}\)</span> ?</p>
+<p>Do we follow parentheses? Ask the compiler!</p>
 </section>
 <section id="aligned-update" class="slide level2">
 <h2>Aligned update</h2>
@@ -709,7 +693,6 @@ x[i] = y[i]</code></pre>
 </table>
 <p>Single-displacement has a performance penalty</p>
 </section></section>
-<section>
 <section id="diffusion-performance" class="title-slide slide level1">
 <h1>Diffusion Performance</h1>
 <table>
@@ -742,7 +725,7 @@ x[i] = y[i]</code></pre>
 </tr>
 </tbody>
 </table>
-<p>Multistage loops incur a penalty in cache</p>
+<p>Significant drop in cache performance</p>
 <aside class="notes">
 <p>Despite all that, there is still a discrepancy, at least at cache</p>
 <p>I cannot stop to explain in more detail, but...</p>
@@ -750,8 +733,10 @@ x[i] = y[i]</code></pre>
 <p>RAM bounds look good, however (IMO!)</p>
 </aside>
 </section>
-<section id="staging-penalty" class="slide level2">
-<h2>Staging Penalty</h2>
+
+<section>
+<section id="staging-penalty" class="title-slide slide level1">
+<h1>Staging Penalty</h1>
 <table>
 <thead>
 <tr class="header">
@@ -765,7 +750,7 @@ x[i] = y[i]</code></pre>
 <tr class="odd">
 <td><span class="math inline">\(y \leftarrow x + \alpha \nabla^2 x\)</span></td>
 <td>1085 GF/s</td>
-<td>1434* GF/s</td>
+<td>1434 GF/s</td>
 <td>75.7</td>
 </tr>
 <tr class="even">
@@ -798,13 +783,9 @@ x[i] = y[i]</code></pre>
 </section>
 <section id="theoretical-values" class="slide level2">
 <h2>Theoretical values</h2>
-<p>Why 1434 GFLOP/s?</p>
-<ul>
-<li>A two-loop unroll exhausts registers! An additional load is required.</li>
-</ul>
 <p>Why 9216 GB/s?</p>
 <ul>
-<li>AVX512 copy is clocked at 3.0 GHz, slightly above AVX512 arithmetic at 2.8 GHz.</li>
+<li>AVX512 copy was clocked at 3.0 GHz, slightly above AVX512 arithmetic at 2.8 GHz.</li>
 </ul>
 </section></section>
 <section id="mom6-benchmark" class="title-slide slide level1">
@@ -832,7 +813,7 @@ x[i] = y[i]</code></pre>
 <section id="mom6-performance" class="title-slide slide level1">
 <h1>MOM6 Performance</h1>
 <p><img data-src="img/mom6_subrt_flops.svg" alt="image" /></p>
-<p>High FLOP rates don't necessarily indicate efficiency...</p>
+<p>High FLOPs don't necessarily indicate efficiency</p>
 <aside class="notes">
 <p>Major subroutines are shown here:</p>
 <ul>
@@ -845,8 +826,8 @@ x[i] = y[i]</code></pre>
 </aside>
 </section>
 
-<section id="objective-intensity" class="title-slide slide level1">
-<h1>Objective Intensity</h1>
+<section id="observed-ai" class="title-slide slide level1">
+<h1>Observed AI</h1>
 <p>Can we measure the subroutine intensity?</p>
 <ul>
 <li>FLOP count is reasonably accurate</li>
@@ -890,13 +871,13 @@ x[i] = y[i]</code></pre>
 <p>Take these conclusions with some skepticism, this needs more analysis. But I do believe that such an analysis ought to be possible and available for developers.</p>
 </aside>
 </section>
-<section id="mom6-16x-domain" class="slide level2">
-<h2>MOM6: 16x Domain</h2>
-<p><img data-src="img/mom6_roofline_all_4x.svg" style="width:80.0%" alt="image" /></p>
-</section>
 <section id="mom6-all-subroutines" class="slide level2">
 <h2>MOM6: All subroutines</h2>
 <p><img data-src="img/mom6_roofline_all_1x.svg" style="width:60.0%" alt="image" /></p>
+</section>
+<section id="mom6-16x-domain" class="slide level2">
+<h2>MOM6: 16x Domain</h2>
+<p><img data-src="img/mom6_roofline_all_4x.svg" style="width:80.0%" alt="image" /></p>
 </section>
 <section id="recent-speedups" class="slide level2">
 <h2>Recent Speedups</h2>
@@ -924,6 +905,25 @@ x[i] = y[i]</code></pre>
 <p>Highest points correspond to recent optimization efforts</p>
 <p>(NOTE: Timings are from a different config)</p>
 </section></section>
+<section id="procedure" class="title-slide slide level1">
+<h1>Procedure</h1>
+<ul>
+<li>Compute <span class="math inline">\(I\)</span> for operation</li>
+<li>If targeting CPUs:
+<ul>
+<li>Seek optimal length, distribute across cores</li>
+</ul></li>
+<li>If targeting GPUs:
+<ul>
+<li>Push for very large domains</li>
+</ul></li>
+<li>Evaluate performance, assess efficiency
+<ul>
+<li>Seek improvements ("move up") if possible</li>
+</ul></li>
+</ul>
+</section>
+
 <section>
 <section id="summary" class="title-slide slide level1">
 <h1>Summary</h1>
@@ -939,14 +939,11 @@ x[i] = y[i]</code></pre>
 <li>Develop confidence in estimating model bandwidth</li>
 </ul>
 </section>
-<section id="old-summary" class="slide level2">
-<h2>Old summary</h2>
+<section id="future-hardware" class="slide level2">
+<h2>Future Hardware</h2>
 <ul>
-<li>Most ocean model solvers are bandwidth-limited</li>
-<li>Arithmetic intensity (AI) is a predictor of performance</li>
-<li>CPUs benefit from modest arrays, but can tolerate larger ones</li>
-<li>GPUs <em>strongly favor</em> large arrays, and implicit (matrix) solvers</li>
-<li>AI can be used to strategize optimization</li>
+<li>Nvidia Hopper/Ampere have even greater bandwidth (&gt; 2-3TB/s?)</li>
+<li>Fujitsu's A64FX: Combine cache CPU with HBM memory?</li>
 </ul>
 </section></section>
     </div>

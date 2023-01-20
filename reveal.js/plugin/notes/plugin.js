@@ -1,6 +1,6 @@
-import speakerViewHTML from './speaker-view.html';
+import speakerViewHTML from './speaker-view.html'
 
-import marked from 'marked';
+import { marked } from 'marked';
 
 /**
  * Handles opening of and synchronization with the reveal.js
@@ -67,13 +67,18 @@ const Plugin = () => {
 		*/
 	function connect() {
 
+		const presentationURL = deck.getConfig().url;
+
+		const url = typeof presentationURL === 'string' ? presentationURL :
+								window.location.protocol + '//' + window.location.host + window.location.pathname + window.location.search;
+
 		// Keep trying to connect until we get a 'connected' message back
 		connectInterval = setInterval( function() {
 			speakerWindow.postMessage( JSON.stringify( {
 				namespace: 'reveal-notes',
 				type: 'connect',
-				url: window.location.protocol + '//' + window.location.host + window.location.pathname + window.location.search,
-				state: deck.getState()
+				state: deck.getState(),
+				url
 			} ), '*' );
 		}, 500 );
 
@@ -103,7 +108,7 @@ const Plugin = () => {
 	function post( event ) {
 
 		let slideElement = deck.getCurrentSlide(),
-			notesElement = slideElement.querySelector( 'aside.notes' ),
+			notesElements = slideElement.querySelectorAll( 'aside.notes' ),
 			fragmentElement = slideElement.querySelector( '.current-fragment' );
 
 		let messageData = {
@@ -125,36 +130,61 @@ const Plugin = () => {
 		if( fragmentElement ) {
 			let fragmentNotes = fragmentElement.querySelector( 'aside.notes' );
 			if( fragmentNotes ) {
-				notesElement = fragmentNotes;
+				messageData.notes = fragmentNotes.innerHTML;
+				messageData.markdown = typeof fragmentNotes.getAttribute( 'data-markdown' ) === 'string';
+
+				// Ignore other slide notes
+				notesElements = null;
 			}
 			else if( fragmentElement.hasAttribute( 'data-notes' ) ) {
 				messageData.notes = fragmentElement.getAttribute( 'data-notes' );
 				messageData.whitespace = 'pre-wrap';
 
 				// In case there are slide notes
-				notesElement = null;
+				notesElements = null;
 			}
 		}
 
 		// Look for notes defined in an aside element
-		if( notesElement ) {
-			messageData.notes = notesElement.innerHTML;
-			messageData.markdown = typeof notesElement.getAttribute( 'data-markdown' ) === 'string';
+		if( notesElements ) {
+			messageData.notes = Array.from(notesElements).map( notesElement => notesElement.innerHTML ).join( '\n' );
+			messageData.markdown = notesElements[0] && typeof notesElements[0].getAttribute( 'data-markdown' ) === 'string';
 		}
 
 		speakerWindow.postMessage( JSON.stringify( messageData ), '*' );
 
 	}
 
+	/**
+	 * Check if the given event is from the same origin as the
+	 * current window.
+	 */
+	function isSameOriginEvent( event ) {
+
+		try {
+			return window.location.origin === event.source.location.origin;
+		}
+		catch ( error ) {
+			return false;
+		}
+
+	}
+
 	function onPostMessage( event ) {
 
-		let data = JSON.parse( event.data );
-		if( data && data.namespace === 'reveal-notes' && data.type === 'connected' ) {
-			clearInterval( connectInterval );
-			onConnected();
-		}
-		else if( data && data.namespace === 'reveal-notes' && data.type === 'call' ) {
-			callRevealApi( data.methodName, data.arguments, data.callId );
+		// Only allow same-origin messages
+		// (added 12/5/22 as a XSS safeguard)
+		if( isSameOriginEvent( event ) ) {
+
+			let data = JSON.parse( event.data );
+			if( data && data.namespace === 'reveal-notes' && data.type === 'connected' ) {
+				clearInterval( connectInterval );
+				onConnected();
+			}
+			else if( data && data.namespace === 'reveal-notes' && data.type === 'call' ) {
+				callRevealApi( data.methodName, data.arguments, data.callId );
+			}
+
 		}
 
 	}
@@ -198,8 +228,15 @@ const Plugin = () => {
 					// that we remain connected to the notes even if the presentation
 					// is reloaded.
 					window.addEventListener( 'message', event => {
-						if( !speakerWindow ) {
-							let data = JSON.parse( event.data );
+
+						if( !speakerWindow && typeof event.data === 'string' ) {
+							let data;
+
+							try {
+								data = JSON.parse( event.data );
+							}
+							catch( error ) {}
+
 							if( data && data.namespace === 'reveal-notes' && data.type === 'heartbeat' ) {
 								reconnectSpeakerWindow( event.source );
 							}
